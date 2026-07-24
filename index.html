@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expediente OBC — Gestor de constitución</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root{
+    --paper:#f2ede0;
+    --paper-dark:#e7dfc9;
+    --ink:#2b2a26;
+    --ink-soft:#5c584d;
+    --pine:#1f4d3a;
+    --pine-dark:#123024;
+    --sello:#a3372b;
+    --sello-soft:#c9564a;
+    --line:#c9bfa0;
+    --gold:#a3822f;
+    --ok:#2f6b46;
+    --paper-shadow: 0 1px 0 rgba(43,42,38,.06), 0 8px 24px rgba(43,42,38,.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 800px at 10% -10%, #ece3cc 0%, transparent 60%),
+      var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+  }
+  ::selection{ background: var(--gold); color:#fff; }
+
+  h1,h2,h3{ font-family:'Source Serif 4', serif; font-weight:700; margin:0 0 .3em; color:var(--pine-dark); }
+  .eyebrow{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--sello); }
+
+  a{ color:var(--pine); }
+
+  /* ===== Layout ===== */
+  .app{ display:flex; min-height:100vh; }
+  .stepper{
+    width:270px; flex:0 0 270px;
+    background: var(--pine-dark);
+    color:#e8e2cf;
+    padding:28px 20px 40px;
+    position:sticky; top:0; align-self:flex-start; height:100vh; overflow-y:auto;
+  }
+  .stepper .brand{
+    font-family:'Source Serif 4', serif; font-size:22px; color:#fff; margin-bottom:2px;
+  }
+  .stepper .brand small{ display:block; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; color:#9fb8a9; text-transform:uppercase; margin-top:4px;}
+  .stepper .decreto{ font-size:11px; color:#9fb8a9; margin:14px 0 26px; line-height:1.5; padding-bottom:18px; border-bottom:1px solid rgba(255,255,255,.12);}
+  .steps-list{ list-style:none; margin:0; padding:0; }
+  .steps-list li{ margin-bottom:2px; }
+  .step-btn{
+    width:100%; display:flex; align-items:center; gap:12px;
+    background:none; border:none; color:#cfe0d2; text-align:left;
+    padding:11px 10px; border-radius:6px; cursor:pointer; font-size:13.5px;
+    font-family:'IBM Plex Sans', sans-serif;
+  }
+  .step-btn:hover{ background:rgba(255,255,255,.06); }
+  .step-btn.active{ background:rgba(255,255,255,.1); color:#fff; font-weight:600; }
+  .step-num{
+    flex:0 0 26px; height:26px; border-radius:50%; border:1.5px solid #5a7c69;
+    display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#cfe0d2;
+  }
+  .step-btn.done .step-num{ background:var(--sello); border-color:var(--sello); color:#fff; }
+  .step-btn.active .step-num{ border-color:#fff; }
+  .stepper-foot{ margin-top:28px; padding-top:18px; border-top:1px solid rgba(255,255,255,.12); font-size:11.5px; color:#9fb8a9; line-height:1.5;}
+
+  .main{ flex:1; padding:36px 48px 90px; max-width:900px; }
+  .doc-head{ margin-bottom:26px; }
+  .doc-head .eyebrow{ margin-bottom:8px; display:block;}
+  .doc-head p.lead{ color:var(--ink-soft); max-width:640px; line-height:1.55; font-size:14.5px; }
+
+  .card{
+    background:#fbf8ef; border:1px solid var(--line); border-radius:3px;
+    box-shadow: var(--paper-shadow); padding:26px 28px; margin-bottom:22px; position:relative;
+  }
+  .card::before{ /* punch holes, folder feel */
+    content:""; position:absolute; left:-1px; top:0; bottom:0; width:0;
+  }
+  .card h3{ font-size:18px; margin-bottom:14px; }
+  .card h3 .req{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--sello); border:1px solid var(--sello); border-radius:3px; padding:2px 6px; margin-left:8px; vertical-align:2px; }
+
+  .grid{ display:grid; gap:14px; }
+  .grid.cols-2{ grid-template-columns:1fr 1fr; }
+  .grid.cols-3{ grid-template-columns:1fr 1fr 1fr; }
+  @media (max-width:760px){ .grid.cols-2,.grid.cols-3{ grid-template-columns:1fr; } .main{padding:24px 18px 70px;} .stepper{width:100%; height:auto; position:relative; flex:none;} .app{flex-direction:column;} }
+
+  label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:5px; font-weight:500; }
+  input[type=text], input[type=date], input[type=time], input[type=number], textarea, select{
+    width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:3px;
+    background:#fff; font-family:'IBM Plex Sans', sans-serif; font-size:14px; color:var(--ink);
+  }
+  textarea{ resize:vertical; min-height:70px; line-height:1.5; }
+  input:focus, textarea:focus, select:focus{ outline:2px solid var(--pine); outline-offset:1px; }
+  .field{ margin-bottom:14px; }
+  .hint{ font-size:11.5px; color:#8b8570; margin-top:4px; line-height:1.4; }
+
+  .btn{
+    font-family:'IBM Plex Sans', sans-serif; font-weight:600; font-size:13px; cursor:pointer;
+    border-radius:3px; padding:9px 16px; border:1px solid var(--pine); background:var(--pine); color:#fff;
+  }
+  .btn:hover{ background:var(--pine-dark); }
+  .btn.ghost{ background:none; color:var(--pine); }
+  .btn.ghost:hover{ background:rgba(31,77,58,.07); }
+  .btn.sm{ padding:6px 11px; font-size:12px; }
+  .btn.danger{ border-color:var(--sello); color:var(--sello); background:none; }
+  .btn.danger:hover{ background:rgba(163,55,43,.08); }
+  .row-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+
+  .repeat-item{
+    border:1px dashed var(--line); border-radius:4px; padding:14px; margin-bottom:12px; position:relative; background:#fdfcf6;
+  }
+  .repeat-item .remove{ position:absolute; top:8px; right:8px; }
+
+  .nav-buttons{ display:flex; justify-content:space-between; margin-top:30px; }
+
+  table.list-table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:10px;}
+  table.list-table th, table.list-table td{ border:1px solid var(--line); padding:6px 8px; text-align:left; }
+  table.list-table th{ background:var(--paper-dark); font-weight:600; }
+
+  /* Document preview (paper-in-paper) */
+  .doc-preview{
+    background:#fffdf6; border:1px solid var(--line); border-radius:2px;
+    padding:34px 38px; font-family:'IBM Plex Mono', monospace; font-size:12.4px; line-height:1.75;
+    white-space:pre-wrap; color:#2b2a26; box-shadow: inset 0 0 0 1px rgba(0,0,0,.02);
+    position:relative;
+  }
+  .doc-preview .gaceta-mark{
+    position:absolute; top:16px; right:20px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#b9b190; letter-spacing:.08em;
+  }
+
+  .stamp{
+    display:inline-flex; align-items:center; gap:8px; font-family:'IBM Plex Mono',monospace; font-size:11px;
+    color:var(--sello); border:2px solid var(--sello); border-radius:5px; padding:6px 12px; transform:rotate(-3deg);
+    text-transform:uppercase; letter-spacing:.06em; background:rgba(163,55,43,.05);
+  }
+  .stamp.ok{ color:var(--ok); border-color:var(--ok); background:rgba(47,107,70,.06); }
+
+  .checklist{ list-style:none; margin:0; padding:0; }
+  .checklist li{ display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--paper-dark); font-size:13.5px;}
+  .checklist li:last-child{ border-bottom:none; }
+  .checklist .mark{ flex:0 0 20px; height:20px; border-radius:50%; border:1.5px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:11px; margin-top:1px;}
+  .checklist li.done .mark{ background:var(--ok); border-color:var(--ok); color:#fff; }
+  .checklist li.done{ color:var(--ink-soft); text-decoration:line-through; text-decoration-color:#b7b19b; }
+
+  .banner{
+    background:var(--paper-dark); border-left:3px solid var(--gold); padding:12px 16px; font-size:13px; border-radius:2px; margin-bottom:20px; line-height:1.55;
+  }
+  .banner.warn{ border-left-color:var(--sello); background:#f5e6e0; }
+
+  .toast{
+    position:fixed; bottom:22px; right:22px; background:var(--pine-dark); color:#fff; padding:10px 18px;
+    border-radius:4px; font-size:13px; box-shadow:0 6px 20px rgba(0,0,0,.25); opacity:0; transform:translateY(8px);
+    transition:all .25s ease; pointer-events:none; z-index:50;
+  }
+  .toast.show{ opacity:1; transform:translateY(0); }
+
+  .summary-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px;}
+  @media (max-width:760px){ .summary-grid{ grid-template-columns:1fr; } }
+  .summary-doc{ border:1px solid var(--line); border-radius:3px; padding:14px 16px; background:#fdfcf6; }
+  .summary-doc h4{ margin:0 0 6px; font-size:14px; font-family:'Source Serif 4', serif; color:var(--pine-dark);}
+  .summary-doc .meta{ font-size:11.5px; color:var(--ink-soft); margin-bottom:10px;}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <nav class="stepper">
+    <div class="brand">Expediente&nbsp;OBC<small>Gestor paso a paso</small></div>
+    <div class="decreto">Basado en el Decreto Ejecutivo N.º 32 de 28 de marzo de 2017 (Ministerio de Ambiente), Reglamento de reconocimiento de la personería jurídica de las Organizaciones de Base Comunitaria.</div>
+    <ul class="steps-list" id="stepsList"></ul>
+    <div class="stepper-foot">Tus datos se guardan en este dispositivo automáticamente mientras completas el expediente.</div>
+  </nav>
+
+  <main class="main" id="main"></main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ MODELO DE DATOS ============ */
+const STEPS = [
+  {id:'inicio', label:'Antes de empezar'},
+  {id:'org', label:'Datos de la organización'},
+  {id:'fundadores', label:'Miembros fundadores'},
+  {id:'junta', label:'Junta Directiva'},
+  {id:'constitucion', label:'Acta de Constitución'},
+  {id:'estatuto', label:'Estatuto'},
+  {id:'plan', label:'Plan de Trabajo'},
+  {id:'aprobacion', label:'Acta de aprobación'},
+  {id:'solicitud', label:'Nota de solicitud'},
+  {id:'expediente', label:'Expediente final'},
+];
+
+let data = {
+  org: baymetOrgDefaults(),
+  fundadores:[ blankFundador(), blankFundador(), blankFundador() ],
+  junta:{ presidenteIdx:0, secretarioIdx:1, tesoreroIdx:2, periodoAnios:'3' },
+  constitucion:{ fecha:'', hora:'', presAdhocIdx:0, secAdhocIdx:1, nombreElegido:'' },
+  estatuto: baymetEstatutoDefaults(),
+  plan:{ periodo:'', actividades:[ blankActividad() ] },
+  aprobacion:{ fecha:'', hora:'' },
+  solicitud:{ fecha:'', direccionRegional:'', funcionario:'' },
+};
+
+function blankFundador(){ return { nombre:'', cedula:'', direccion:'', telefono:'', genero:'' }; }
+function blankActividad(){ return { actividad:'', objetivo:'', fecha:'', responsable:'' }; }
+
+function baymetOrgDefaults(){
+  return {
+    nombre:'BAYMET (Bayano Methane Tracking)',
+    siglas:'OBC',
+    provincia:'Panamá',
+    distrito:'Chepo',
+    corregimiento:'Cañita',
+    comunidad:'Loma Naranjo',
+    direccion:'Comunidad de Loma Naranjo, corregimiento de Cañita, distrito de Chepo, provincia de Panamá. (Pendiente precisar el punto exacto de reunión, ej. referencia visual del local.)',
+    ambito:'Principalmente la provincia de Panamá, con especial atención a la cuenca del Lago Bayano, pudiendo extender su ámbito de actuación a nivel nacional e internacional mediante alianzas, convenios o proyectos que contribuyan al cumplimiento de sus objetivos.',
+    objetivos:'a) Generar conocimiento científico sobre las emisiones de metano y otros gases de efecto invernadero en Panamá.\nb) Fortalecer las capacidades comunitarias para el monitoreo ambiental participativo.\nc) Desarrollar e implementar tecnologías de sensores y análisis de datos aplicadas al ambiente.\nd) Contribuir a la formulación de políticas públicas ambientales basadas en evidencia.\ne) Formar nuevas generaciones de investigadores y líderes ambientales.\nf) Promover el desarrollo integral de las comunidades de su área de influencia, con base en los pilares ambiental, social y educativo.',
+    fines:'a) Contribuir al bienestar de la población mediante acciones ambientales, científicas, sociales y educativas.\nb) Promover una cultura de sostenibilidad, responsabilidad social y conciencia ambiental frente al cambio climático.\nc) Fortalecer las capacidades de niños, jóvenes y adultos en las comunidades vinculadas a la organización.\nd) Apoyar iniciativas comunitarias que impulsen el desarrollo local sostenible.',
+    actividades:'a) Diseño, instalación y operación de redes de sensores y estaciones de monitoreo ambiental.\nb) Recolección, procesamiento y análisis de datos científicos, y publicación de sus resultados.\nc) Desarrollo de talleres, capacitaciones, seminarios y campañas de educación ambiental y ciencia ciudadana.\nd) Organización de actividades comunitarias, educativas y de voluntariado.\ne) Establecimiento de alianzas con instituciones públicas, privadas y organismos nacionales e internacionales.\nf) Gestión y administración de fondos, donaciones y subvenciones destinados a sus fines.',
+  };
+}
+function baymetEstatutoDefaults(){
+  return {
+    modalidad:'Podrán ser asociados las personas naturales o jurídicas que compartan los objetivos de la organización y soliciten su ingreso, previa aprobación de la Junta Directiva o la Asamblea General. Se pierde la condición de asociado por renuncia voluntaria, incumplimiento del Estatuto, actos que perjudiquen a la organización, o decisión fundamentada de la Asamblea General o la Junta Directiva.',
+    derechos:'a) Participar con voz y voto en las Asambleas Generales.\nb) Elegir y ser elegidos para cargos directivos.\nc) Proponer iniciativas y proyectos.\nd) Recibir información sobre la gestión de la organización.',
+    deberes:'a) Cumplir el Estatuto y los acuerdos válidamente adoptados.\nb) Participar activamente en las actividades.\nc) Contribuir al logro de los objetivos institucionales.\nd) Mantener una conducta respetuosa y responsable.',
+    convocatoria:'Las Asambleas Generales serán convocadas por el Presidente o la Junta Directiva, mediante aviso escrito, digital o cualquier medio verificable, con al menos cinco (5) días hábiles de anticipación, indicando fecha, hora, lugar y agenda. También podrán convocarse a solicitud de al menos un tercio (1/3) de los asociados. El quórum de Asamblea es la mitad más uno de los asociados; de no lograrse, en segunda convocatoria será válida con los presentes. La Junta Directiva se reunirá de forma ordinaria al menos cada tres (3) meses, con quórum de la mitad más uno de sus miembros.',
+    periodoJunta:'3',
+    reeleccion:'Se permite la reelección por un único período adicional consecutivo, previa aprobación de la Asamblea General.',
+    modificacion:'El Estatuto podrá ser reformado por la Asamblea General Extraordinaria mediante mayoría calificada (dos tercios de los asociados presentes).',
+    patrimonio:'El patrimonio estará constituido por bienes muebles e inmuebles, aportes, donaciones, subvenciones, equipos de monitoreo y bases de datos científicas, y cualquier otro ingreso lícito. Los recursos se utilizarán exclusivamente para el cumplimiento de los objetivos y no podrán distribuirse entre los miembros.',
+    disolucion:'La organización podrá disolverse por decisión de la Asamblea General mediante mayoría calificada (dos tercios de los asociados presentes) o por causas legales. En caso de imposibilidad de continuar operando, la Asamblea General tomará las medidas necesarias para su cierre ordenado.',
+    destinoBienes:'En caso de disolución, los bienes serán destinados a otra organización sin fines de lucro con fines similares, según lo determine la Asamblea General.',
+  };
+}
+function cargarDatosBaymet(){
+  data.org = baymetOrgDefaults();
+  data.estatuto = baymetEstatutoDefaults();
+  data.junta.periodoAnios = '3';
+  saveData();
+  renderAll();
+  showToast('Datos de BAYMET cargados');
+}
+
+let currentStep = 0;
+
+/* ============ PERSISTENCIA ============ */
+async function loadData(){
+  try{
+    const res = await window.storage.get('obc-expediente', false);
+    if(res && res.value){
+      const saved = JSON.parse(res.value);
+      data = Object.assign(data, saved);
+    }
+  }catch(e){ /* no hay datos guardados aún */ }
+}
+let saveTimer=null;
+function saveData(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{ await window.storage.set('obc-expediente', JSON.stringify(data), false); }
+    catch(e){ console.error('No se pudo guardar', e); }
+  }, 350);
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ============ COMPLETITUD (para sellos en el stepper) ============ */
+function isDone(stepId){
+  const o = data.org, f = data.fundadores, j = data.junta, c = data.constitucion, e = data.estatuto, p = data.plan, a = data.aprobacion, s = data.solicitud;
+  switch(stepId){
+    case 'inicio': return true;
+    case 'org': return !!(o.nombre && o.siglas && o.distrito && o.corregimiento && o.comunidad && o.direccion && o.ambito && o.objetivos && o.fines && o.actividades);
+    case 'fundadores': return f.length>=3 && f.every(x=>x.nombre && x.cedula);
+    case 'junta': return isDone('fundadores') && j.presidenteIdx!==j.secretarioIdx && j.secretarioIdx!==j.tesoreroIdx && j.presidenteIdx!==j.tesoreroIdx;
+    case 'constitucion': return isDone('junta') && !!(c.fecha && c.hora && c.nombreElegido);
+    case 'estatuto': return isDone('org') && !!(e.modalidad && e.derechos && e.deberes && e.convocatoria && e.periodoJunta && e.reeleccion && e.modificacion && e.patrimonio && e.disolucion && e.destinoBienes);
+    case 'plan': return !!(p.periodo && p.actividades.length && p.actividades.every(x=>x.actividad));
+    case 'aprobacion': return !!(a.fecha && a.hora);
+    case 'solicitud': return !!(s.fecha && s.direccionRegional && s.funcionario);
+    case 'expediente': return true;
+    default: return false;
+  }
+}
+
+/* ============ RENDER STEPPER ============ */
+function renderStepper(){
+  const ul = document.getElementById('stepsList');
+  ul.innerHTML = '';
+  STEPS.forEach((st, i)=>{
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i===currentStep ? ' active':'') + (isDone(st.id) ? ' done':'');
+    btn.innerHTML = `<span class="step-num">${isDone(st.id) && i!==currentStep ? '✓' : i}</span><span>${st.label}</span>`;
+    btn.onclick = ()=>{ currentStep=i; renderAll(); window.scrollTo(0,0); };
+    li.appendChild(btn);
+    ul.appendChild(li);
+  });
+}
+
+/* ============ HELPERS UI ============ */
+function field(labelTxt, value, onInput, opts={}){
+  const wrap = document.createElement('div'); wrap.className='field';
+  const lab = document.createElement('label'); lab.textContent = labelTxt; wrap.appendChild(lab);
+  let input;
+  if(opts.textarea){ input = document.createElement('textarea'); if(opts.rows) input.rows = opts.rows; }
+  else { input = document.createElement('input'); input.type = opts.type || 'text'; }
+  input.value = value || '';
+  input.placeholder = opts.placeholder || '';
+  input.addEventListener('input', (ev)=>{ onInput(ev.target.value); saveData(); refreshStepperOnly(); });
+  wrap.appendChild(input);
+  if(opts.hint){ const h=document.createElement('div'); h.className='hint'; h.textContent=opts.hint; wrap.appendChild(h); }
+  return wrap;
+}
+function selectField(labelTxt, value, options, onChange){
+  const wrap = document.createElement('div'); wrap.className='field';
+  const lab = document.createElement('label'); lab.textContent = labelTxt; wrap.appendChild(lab);
+  const sel = document.createElement('select');
+  options.forEach(opt=>{
+    const o = document.createElement('option'); o.value = opt.value; o.textContent = opt.label;
+    if(opt.value === value) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', (ev)=>{ onChange(ev.target.value); saveData(); renderAll(); });
+  wrap.appendChild(sel);
+  return wrap;
+}
+function refreshStepperOnly(){ renderStepper(); }
+
+function navButtons(container){
+  const nav = document.createElement('div'); nav.className='nav-buttons';
+  const prev = document.createElement('button'); prev.className='btn ghost'; prev.textContent='← Anterior';
+  prev.disabled = currentStep===0;
+  prev.onclick = ()=>{ currentStep=Math.max(0,currentStep-1); renderAll(); window.scrollTo(0,0); };
+  const next = document.createElement('button'); next.className='btn'; next.textContent = currentStep===STEPS.length-1 ? 'Ir al inicio' : 'Siguiente →';
+  next.onclick = ()=>{ currentStep = currentStep===STEPS.length-1 ? 0 : Math.min(STEPS.length-1,currentStep+1); renderAll(); window.scrollTo(0,0); };
+  nav.appendChild(prev); nav.appendChild(next);
+  container.appendChild(nav);
+}
+
+function downloadText(filename, content){
+  const blob = new Blob([content], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function copyText(content){
+  navigator.clipboard.writeText(content).then(()=>showToast('Copiado al portapapeles')).catch(()=>showToast('No se pudo copiar'));
+}
+
+/* ============ EXPORTACIÓN A WORD (.doc) ============ */
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function isHeadingLine(line){
+  const t = line.trim();
+  if(!t) return false;
+  const letters = t.replace(/[^A-Za-zÁÉÍÓÚÑÜáéíóúñü]/g,'');
+  if(letters.length < 3) return false;
+  return t === t.toUpperCase() && /[A-ZÁÉÍÓÚÑ]/.test(t);
+}
+function isArticleLine(line){
+  return /^(Artículo|Capítulo|CAPITULO)\b/i.test(line.trim());
+}
+function textToWordBody(text){
+  const lines = text.split('\n');
+  let html = '';
+  lines.forEach(raw=>{
+    const line = raw.replace(/\t/g,'    ');
+    if(!line.trim()){
+      html += `<p style="margin:0 0 8pt 0;">&nbsp;</p>\n`;
+      return;
+    }
+    const esc = escapeHtml(line);
+    if(isHeadingLine(line)){
+      html += `<p style="text-align:center;font-weight:bold;font-size:13pt;margin:18pt 0 10pt 0;">${esc}</p>\n`;
+    } else if(isArticleLine(line)){
+      html += `<p style="font-weight:bold;margin:12pt 0 4pt 0;">${esc}</p>\n`;
+    } else if(/^-{5,}$|^={5,}$/.test(line.trim())){
+      html += `<p style="margin:2pt 0;border-bottom:1px solid #000;">&nbsp;</p>\n`;
+    } else {
+      html += `<p style="text-align:justify;margin:0 0 8pt 0;font-family:'Cambria','Times New Roman',serif;">${esc}</p>\n`;
+    }
+  });
+  return html;
+}
+function buildWordDoc(titleForHead, bodyHtmlOrText, isRawHtml){
+  const bodyHtml = isRawHtml ? bodyHtmlOrText : textToWordBody(bodyHtmlOrText);
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(titleForHead)}</title>
+<!--[if gte mso 9]>
+<xml>
+<w:WordDocument>
+<w:View>Print</w:View>
+<w:Zoom>100</w:Zoom>
+<w:DoNotOptimizeForBrowser/>
+</w:WordDocument>
+</xml>
+<![endif]-->
+<style>
+  @page Section1 { size:8.5in 11in; margin:1in 1in 1in 1in; }
+  div.Section1 { page:Section1; }
+  body{ font-family:'Cambria','Times New Roman',serif; font-size:11.5pt; color:#000; }
+  p{ line-height:1.4; }
+</style>
+</head>
+<body>
+<div class="Section1">
+${bodyHtml}
+</div>
+</body>
+</html>`;
+}
+function downloadWordDoc(filename, title, text){
+  const html = buildWordDoc(title, text, false);
+  const blob = new Blob(['\ufeff', html], {type:'application/msword'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download = filename.endsWith('.doc') ? filename : filename.replace(/\.txt$/,'') + '.doc';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function wordBtn(label, filename, title, textFn){
+  const b = document.createElement('button'); b.className='btn sm'; b.textContent = label || 'Descargar Word (.doc)';
+  b.onclick = ()=>downloadWordDoc(filename, title, textFn());
+  return b;
+}
+
+/* ============ GENERADORES DE DOCUMENTOS ============ */
+function fmtFecha(iso){
+  if(!iso) return '_____________';
+  const d = new Date(iso+'T00:00:00');
+  const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  return `${d.getDate()} de ${meses[d.getMonth()]} de ${d.getFullYear()}`;
+}
+function nombreFundador(i){ const f=data.fundadores[i]; return f ? (f.nombre || `(fundador ${i+1} sin nombre)`) : '_____________'; }
+function cedulaFundador(i){ const f=data.fundadores[i]; return f ? (f.cedula || '_____________') : '_____________'; }
+
+function genNota(){
+  const s = data.solicitud, o = data.org;
+  return `Panamá; ${fmtFecha(s.fecha)}.
+
+${s.funcionario || 'Ingeniero(a) ____________________'}
+Ministerio de Ambiente
+Director(a) Regional de ${s.direccionRegional || '____________________'}
+En su despacho
+
+Respetado(a) Ingeniero(a):
+
+Reciba del nuevo grupo conformado en la comunidad de ${o.comunidad || '____________'} un cordial saludo, deseando lo mejor en sus funciones junto a sus colaboradores.
+
+Como Presidente(a) de la nueva organización creada en la comunidad de ${o.comunidad || '____________'}, corregimiento de ${o.corregimiento || '____________'}, distrito de ${o.distrito || '____________'}, hemos formado una Organización de Base Comunitaria denominada ${o.nombre || '____________'}, ${o.siglas || 'OBC'}. Por tal razón hacemos formal solicitud al Ministerio de Ambiente para obtener el reconocimiento y registro de nuestra organización, de acuerdo con el Decreto Ejecutivo N.º 32 de 28 de marzo de 2017, que reglamenta la personería jurídica de las OBC.
+
+Entregamos los siguientes documentos, conforme al Artículo 11 del citado Decreto:
+
+1. Nota de solicitud para la personería jurídica.
+2. Acta de Constitución de la organización y lista de asistencia.
+3. Lista de la Junta Directiva y direcciones de cada uno de sus miembros.
+4. Copia de cédulas de la Junta Directiva.
+5. Acta de aprobación del Estatuto y Plan de Trabajo.
+6. Estatuto.
+7. Plan de Trabajo ${data.plan.periodo || '____________'}.
+
+Agradeciendo de antemano la acogida de la misma, quedo de usted.
+
+Cordialmente,
+
+
+____________________________
+Presidente(a), ${o.nombre || '____________'}, ${o.siglas || 'OBC'}`;
+}
+
+function genActaConstitucion(){
+  const o = data.org, c = data.constitucion, f = data.fundadores;
+  const mujeres = f.filter(x=>x.genero==='F').length;
+  const hombres = f.filter(x=>x.genero==='M').length;
+  return `ACTA DE CONSTITUCIÓN DE LA ORGANIZACIÓN
+
+Hoy ${fmtFecha(c.fecha) || '_____________'}, en la comunidad de ${o.comunidad || '____________'}, corregimiento de ${o.corregimiento || '____________'}, distrito de ${o.distrito || '____________'}, provincia de ${o.provincia || 'Panamá'}, siendo las ${c.hora || '_____'}, se da inicio a la reunión con la finalidad de formalizar una organización con fines ambientales. Para tal efecto se da inicio con el siguiente orden del día.
+
+ORDEN DEL DÍA
+1. Quórum (lista de asistencia de los presentes).
+2. Nombramiento de Presidente y Secretario(a) Ad-hoc.
+3. Elección de la Junta Directiva de la organización.
+4. Asuntos varios.
+
+DESARROLLO DEL ORDEN DEL DÍA
+
+Se verificó la asistencia de los presentes, habiendo ${f.length} personas, ${mujeres} mujeres y ${hombres} hombres, todos mayores de edad, quienes se constituyen en socios fundadores, cuyos nombres, números de cédula y firmas se anexan al final de la presente acta.
+
+Se escogió al señor(a) ${nombreFundador(c.presAdhocIdx)}, con cédula de identidad personal ${cedulaFundador(c.presAdhocIdx)}, como Presidente(a) Ad-hoc, y al señor(a) ${nombreFundador(c.secAdhocIdx)}, con cédula de identidad personal ${cedulaFundador(c.secAdhocIdx)}, como Secretario(a) Ad-hoc, quienes presidieron la presente asamblea.
+
+Se procedió seguidamente a la elección de la Junta Directiva de la OBC para el periodo de ${data.junta.periodoAnios || '__'} años, por lo cual, unánimemente, los miembros hicieron postulaciones de común acuerdo para los cargos, tal como lo indica el Decreto Ejecutivo N.º 32 de 28 de marzo de 2017, Capítulo IV, Artículo 7.
+
+La Junta Directiva de la agrupación quedó constituida de la siguiente manera:
+
+  Presidente(a):  ${nombreFundador(data.junta.presidenteIdx)}  (cédula ${cedulaFundador(data.junta.presidenteIdx)})
+  Secretario(a):  ${nombreFundador(data.junta.secretarioIdx)}  (cédula ${cedulaFundador(data.junta.secretarioIdx)})
+  Tesorero(a):    ${nombreFundador(data.junta.tesoreroIdx)}  (cédula ${cedulaFundador(data.junta.tesoreroIdx)})
+
+Presentes los elegidos, aceptaron los cargos y se les tomó el juramento de rigor, quedando legalmente posesionados.
+
+Se procedió a elegir el nombre de la organización, quedando así:
+
+${o.nombre || '____________________________'}, ${o.siglas || 'OBC'}.
+
+No habiendo nada más que decir, se da por terminada la reunión a las ______________ del día ${fmtFecha(c.fecha)}.
+
+
+_______________________              _________________________
+Presidente(a) Ad hoc                  Secretario(a) Ad hoc`;
+}
+
+function genEstatuto(){
+  const o = data.org, e = data.estatuto;
+  return `ORGANIZACIÓN DE BASE COMUNITARIA (OBC)
+
+Nombre de la organización: ${o.nombre || '____________________'}, ${o.siglas || 'OBC'}
+
+ESTATUTO
+
+CAPÍTULO 1 — DISPOSICIONES GENERALES
+
+Artículo 1. Denominación y naturaleza de la asociación.
+Con la denominación ${o.nombre || '____________'}, ${o.siglas || 'OBC'}, se constituye en la provincia de ${o.provincia||'Panamá'}, distrito de ${o.distrito||'____________'}, corregimiento de ${o.corregimiento||'____________'}, en la comunidad de ${o.comunidad||'____________'}, una organización sin fines de lucro para promover valores ambientales, comunitarios y de desarrollo sostenible.
+
+Artículo 2. Personalidad y capacidad.
+La OBC constituida tiene personalidad jurídica y plena capacidad de obrar, pudiendo realizar todos los actos necesarios para el cumplimiento de su finalidad, con sujeción al ordenamiento jurídico vigente.
+
+Artículo 3. Domicilio de la asociación.
+El domicilio social de la OBC es: ${o.direccion || '____________________'}.
+
+Artículo 4. Ámbito de actuación.
+La OBC tendrá como ámbito territorial de acción: ${o.ambito || '____________________'}.
+
+Artículo 5. Duración de la OBC.
+La organización constituida tendrá tiempo indefinido.
+
+CAPÍTULO 2 — OBJETIVOS, FINES Y ACTIVIDADES
+
+Artículo 6. Objetivos.
+${o.objetivos || '____________________'}
+
+Artículo 7. Fines.
+${o.fines || '____________________'}
+
+Artículo 8. Actividades.
+${o.actividades || '____________________'}
+
+CAPÍTULO 3 — ÓRGANOS DE GOBIERNO Y ADMINISTRACIÓN
+
+Artículo 9. De la Asamblea General de Asociados.
+La Asamblea General es el máximo órgano de decisión y gobierno de la OBC, compuesta por la totalidad de los asociados en pleno uso de sus derechos. Adopta sus acuerdos por principio mayoritario y podrá reunirse de forma ordinaria o extraordinaria.
+
+Artículo 10. Legitimación para convocar asambleas.
+${e.convocatoria || '____________________'}
+
+Artículo 11. Modalidad de afiliación y desafiliación de los miembros.
+${e.modalidad || '____________________'}
+
+Artículo 12. Derechos de los miembros.
+${e.derechos || '____________________'}
+
+Artículo 13. Deberes de los miembros.
+${e.deberes || '____________________'}
+
+Artículo 14. De la Junta Directiva.
+La OBC contará con una Junta Directiva compuesta, al menos, por Presidente(a), Secretario(a) y Tesorero(a), que gestiona y representa los intereses de la organización de acuerdo con las directrices de la Asamblea General. El periodo de la Junta Directiva será de ${e.periodoJunta || '__'} años.
+
+Artículo 15. Reelección.
+${e.reeleccion || '____________________'}
+
+Artículo 16. Forma de modificación del estatuto.
+${e.modificacion || '____________________'}
+
+CAPÍTULO 4 — PATRIMONIO Y DISOLUCIÓN
+
+Artículo 17. Patrimonio.
+${e.patrimonio || '____________________'}
+
+Artículo 18. Procedimiento de disolución y liquidación.
+${e.disolucion || '____________________'}
+
+Artículo 19. Destino de los bienes en caso de disolución.
+${e.destinoBienes || '____________________'}`;
+}
+
+function genPlanTrabajo(){
+  const p = data.plan, o = data.org;
+  let tabla = 'ACTIVIDAD                     OBJETIVO                      FECHA         RESPONSABLE\n';
+  tabla += '-'.repeat(90) + '\n';
+  p.actividades.forEach(a=>{
+    tabla += `${(a.actividad||'—').padEnd(28)} ${(a.objetivo||'—').padEnd(28)} ${(a.fecha||'—').padEnd(12)} ${(a.responsable||'—')}\n`;
+  });
+  return `PLAN DE TRABAJO ${p.periodo || '____________'}
+${o.nombre || '____________'}, ${o.siglas || 'OBC'}
+
+Comunidad de ${o.comunidad||'____________'}, corregimiento de ${o.corregimiento||'____________'}, distrito de ${o.distrito||'____________'}.
+
+El presente Plan de Trabajo contempla el término de al menos un (1) año, conforme al Artículo 11, numeral 6, del Decreto Ejecutivo N.º 32 de 2017, y detalla las actividades a desarrollar para el cumplimiento de los objetivos y fines establecidos en el Estatuto de la organización.
+
+${tabla}
+Este plan será presentado ante el Área de Fomento de la Cultura Ambiental de la Dirección Regional del Ministerio de Ambiente correspondiente, junto con el informe anual de gestión, dentro de los noventa (90) días siguientes a la conclusión de cada año de gestión (Artículo 21 del Decreto).`;
+}
+
+function genActaAprobacion(){
+  const a = data.aprobacion, o = data.org, p = data.plan;
+  return `REUNIÓN PARA LA DISCUSIÓN Y APROBACIÓN DEL ESTATUTO
+${o.nombre || '____________'}, ${o.siglas || 'OBC'}, Y PLAN DE TRABAJO DE LA OBC
+
+Hoy ${fmtFecha(a.fecha)}, en la comunidad de ${o.comunidad||'____________'}, corregimiento de ${o.corregimiento||'____________'}, distrito de ${o.distrito||'____________'}, provincia de ${o.provincia||'Panamá'}, siendo las ${a.hora||'_____'}, se da inicio a la reunión con la finalidad de aprobar el Estatuto que regirá a la OBC y el Plan de Trabajo para el periodo ${p.periodo || '____________'}.
+
+ORDEN DEL DÍA
+1. Quórum (lista de asistencia de los presentes).
+2. Discusión y aprobación del Estatuto.
+3. Discusión y aprobación del Plan de Trabajo.
+4. Asuntos varios.
+
+DESARROLLO DEL ORDEN DEL DÍA
+
+Se verificó la asistencia de los presentes, existiendo quórum para llevar a cabo la discusión y aprobación del Estatuto y del Plan de Trabajo anual.
+
+Se procedió a discutir y aprobar cada artículo del presente Estatuto, y una vez finalizado, se discutió el Plan de Trabajo, siendo ambos aprobados por mayoría de los presentes.
+
+No habiendo nada más que discutir, se da por terminada la reunión a las ______________ del día ${fmtFecha(a.fecha)}.
+
+
+_______________________              _________________________
+Presidente(a)                         Secretario(a)`;
+}
+
+function genListadoAsistencia(titulo){
+  const o = data.org;
+  let filas = 'N°   NOMBRE                          CÉDULA              FIRMA\n' + '-'.repeat(70) + '\n';
+  data.fundadores.forEach((f,i)=>{ filas += `${String(i+1).padEnd(4)} ${(f.nombre||'—').padEnd(30)} ${(f.cedula||'—').padEnd(19)} ______________\n`; });
+  return `LISTA DE ASISTENCIA
+${titulo}
+Comunidad de: ${o.comunidad||'____________'}   Corregimiento de: ${o.corregimiento||'____________'}
+Fecha: ____________________
+
+${filas}`;
+}
+
+function genListadoJunta(){
+  const o = data.org, f = data.fundadores, j = data.junta;
+  const filaJunta = (cargo, idx)=>{
+    const m = f[idx] || blankFundador();
+    return `${cargo.padEnd(13)} ${(m.nombre||'—').padEnd(26)} ${(m.cedula||'—').padEnd(16)} ${(m.direccion||'—').padEnd(24)} ${(m.telefono||'—')}`;
+  };
+  return `DIRECCIÓN DE LOS MIEMBROS DE LA JUNTA DIRECTIVA
+Comunidad de: ${o.comunidad||'____________'}, corregimiento de: ${o.corregimiento||'____________'}, distrito de: ${o.distrito||'____________'}.
+
+CARGO         NOMBRE                     CÉDULA           DIRECCIÓN                TELÉFONO
+${'-'.repeat(95)}
+${filaJunta('Presidente(a)', j.presidenteIdx)}
+${filaJunta('Secretario(a)', j.secretarioIdx)}
+${filaJunta('Tesorero(a)', j.tesoreroIdx)}
+
+Nota: adjuntar copia de cédula (o carnet de residente) de cada miembro de la Junta Directiva, conforme al Artículo 11, numeral 5, del Decreto Ejecutivo N.º 32 de 2017.`;
+}
+
+/* ============ RENDER DE PASOS ============ */
+function renderAll(){
+  renderStepper();
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  const stepId = STEPS[currentStep].id;
+  const renderer = RENDERERS[stepId];
+  renderer(main);
+}
+
+function docHead(main, eyebrow, title, lead){
+  const head = document.createElement('div'); head.className='doc-head';
+  const eb = document.createElement('span'); eb.className='eyebrow'; eb.textContent=eyebrow;
+  const h1 = document.createElement('h1'); h1.textContent = title;
+  const p = document.createElement('p'); p.className='lead'; p.textContent = lead;
+  head.appendChild(eb); head.appendChild(h1); head.appendChild(p);
+  main.appendChild(head);
+}
+
+const RENDERERS = {
+
+  inicio(main){
+    docHead(main, 'Paso 0 · Decreto Ejecutivo N.º 32 de 2017', 'Cómo constituir tu OBC', 'Esta guía te lleva por cada documento que exige el Ministerio de Ambiente para reconocer la personería jurídica de tu Organización de Base Comunitaria.');
+    const card = document.createElement('div'); card.className='card';
+    card.innerHTML = `
+      <h3>Qué es una OBC</h3>
+      <p style="line-height:1.6; font-size:14px;">Una Organización de Base Comunitaria (OBC) es una agrupación sin fines de lucro que representa y promueve valores e intereses de una comunidad, dedicada al desarrollo ambientalmente sostenible (Art. 2, Decreto 32 de 2017). El Ministerio de Ambiente es la entidad que reconoce y fiscaliza su personería jurídica.</p>
+      <h3 style="margin-top:22px;">Requisitos mínimos (Art. 8 y 9)</h3>
+      <ul class="checklist">
+        <li><span class="mark">•</span> Mínimo 3 miembros fundadores, mayores de 16 años.</li>
+        <li><span class="mark">•</span> Residentes permanentes de la comunidad.</li>
+        <li><span class="mark">•</span> Panameños o extranjeros con residencia legal en Panamá (para la Junta Directiva).</li>
+      </ul>
+      <h3 style="margin-top:22px;">Documentos que exige el Art. 11</h3>
+      <ol style="line-height:1.9; font-size:14px; padding-left:20px;">
+        <li>Nota de solicitud de personería jurídica.</li>
+        <li>Acta de Constitución + lista de asistencia.</li>
+        <li>Lista de la Junta Directiva y direcciones.</li>
+        <li>Copias de cédulas de la Junta Directiva.</li>
+        <li>Acta de aprobación del Estatuto y Plan de Trabajo.</li>
+        <li>Estatuto.</li>
+        <li>Plan de Trabajo (mínimo 1 año).</li>
+      </ol>
+      <div class="banner">La solicitud completa debe presentarse ante la Dirección Regional del Ministerio de Ambiente correspondiente al domicilio de la OBC, dentro de los 30 días calendario posteriores a la Asamblea de Constitución (Art. 10).</div>
+      <div class="banner warn">El Estatuto oficial de BAYMET define seis cargos en su Junta Directiva (Presidente, Vicepresidente, Secretario, Tesorero, Fiscal y hasta 3 Vocales). Este asistente solo modela los tres cargos mínimos que exige el Decreto (Presidente, Secretario, Tesorero); añade Vicepresidente, Fiscal y Vocales manualmente al Estatuto final si los necesitas.</div>
+    `;
+    main.appendChild(card);
+
+    const loadCard = document.createElement('div'); loadCard.className='card';
+    loadCard.innerHTML = '<h3>Datos de BAYMET</h3><p style="font-size:13.5px; color:var(--ink-soft); line-height:1.55;">Carga en este expediente los datos ya definidos en el Estatuto oficial de BAYMET (Bayano Methane Tracking): comunidad, ámbito, objetivos, fines, actividades y las reglas de la Asamblea y la Junta Directiva. Los fundadores, fechas de asamblea y Plan de Trabajo quedan pendientes de completar.</p>';
+    const loadBtn = document.createElement('button'); loadBtn.className='btn'; loadBtn.textContent='Cargar datos de BAYMET';
+    loadBtn.onclick = cargarDatosBaymet;
+    loadCard.appendChild(loadBtn);
+    main.appendChild(loadCard);
+    navButtons(main);
+  },
+
+  org(main){
+    docHead(main, 'Paso 1 · Art. 14', 'Datos de la organización', 'Esta información alimenta automáticamente el Estatuto, el Acta de Constitución y la Nota de solicitud.');
+    const card = document.createElement('div'); card.className='card';
+    const o = data.org;
+    const grid = document.createElement('div'); grid.className='grid cols-2';
+    grid.appendChild(field('Nombre de la organización', o.nombre, v=>o.nombre=v, {placeholder:'Ej. Amigos del Río Verde'}));
+    grid.appendChild(field('Siglas', o.siglas, v=>o.siglas=v, {placeholder:'OBC'}));
+    grid.appendChild(field('Provincia', o.provincia, v=>o.provincia=v));
+    grid.appendChild(field('Distrito', o.distrito, v=>o.distrito=v));
+    grid.appendChild(field('Corregimiento', o.corregimiento, v=>o.corregimiento=v));
+    grid.appendChild(field('Comunidad', o.comunidad, v=>o.comunidad=v));
+    card.appendChild(grid);
+    card.appendChild(field('Dirección exacta del domicilio (donde se harán las reuniones)', o.direccion, v=>o.direccion=v, {textarea:true, rows:2, hint:'Ej. tercera casa a la derecha después de la escuela, casa color amarilla, cerca del ciclón.'}));
+    card.appendChild(field('Ámbito territorial de actuación', o.ambito, v=>o.ambito=v, {textarea:true, rows:2, hint:'Dónde trabajará la organización: la comunidad, el corregimiento o el distrito completo.'}));
+    card.appendChild(field('Objetivos (Art. 6)', o.objetivos, v=>o.objetivos=v, {textarea:true, rows:4, hint:'Uno por línea, por ejemplo: participación ciudadana ambiental, reforestación, reducción de emisiones, etc.'}));
+    card.appendChild(field('Fines (Art. 7)', o.fines, v=>o.fines=v, {textarea:true, rows:3}));
+    card.appendChild(field('Actividades (Art. 8)', o.actividades, v=>o.actividades=v, {textarea:true, rows:4}));
+    main.appendChild(card);
+    navButtons(main);
+  },
+
+  fundadores(main){
+    docHead(main, 'Paso 2 · Art. 8 y 9', 'Miembros fundadores', 'Se requieren al menos 3 miembros fundadores, mayores de 16 años y residentes permanentes de la comunidad.');
+    const card = document.createElement('div'); card.className='card';
+    if(data.fundadores.length < 3){
+      const b = document.createElement('div'); b.className='banner warn'; b.textContent = `Actualmente hay ${data.fundadores.length} fundador(es). El Decreto exige un mínimo de 3.`;
+      card.appendChild(b);
+    }
+    data.fundadores.forEach((f,i)=>{
+      const item = document.createElement('div'); item.className='repeat-item';
+      if(data.fundadores.length>3){
+        const rm = document.createElement('button'); rm.className='btn danger sm remove'; rm.textContent='Quitar';
+        rm.onclick = ()=>{ data.fundadores.splice(i,1); saveData(); renderAll(); };
+        item.appendChild(rm);
+      }
+      const grid = document.createElement('div'); grid.className='grid cols-2';
+      grid.appendChild(field(`Nombre completo (fundador ${i+1})`, f.nombre, v=>f.nombre=v));
+      grid.appendChild(field('Cédula / carnet de residente', f.cedula, v=>f.cedula=v));
+      grid.appendChild(field('Dirección', f.direccion, v=>f.direccion=v));
+      grid.appendChild(field('Teléfono', f.telefono, v=>f.telefono=v));
+      item.appendChild(grid);
+      item.appendChild(selectField('Sexo (para el conteo del Acta de Constitución)', f.genero, [
+        {value:'', label:'Seleccionar…'}, {value:'F', label:'Mujer'}, {value:'M', label:'Hombre'}
+      ], v=>f.genero=v));
+      card.appendChild(item);
+    });
+    const addBtn = document.createElement('button'); addBtn.className='btn ghost sm'; addBtn.textContent='+ Añadir fundador(a)';
+    addBtn.onclick = ()=>{ data.fundadores.push(blankFundador()); saveData(); renderAll(); };
+    card.appendChild(addBtn);
+    main.appendChild(card);
+    navButtons(main);
+  },
+
+  junta(main){
+    docHead(main, 'Paso 3 · Art. 7', 'Junta Directiva', 'Selecciona, entre los fundadores, quién ocupará cada cargo. Como mínimo: Presidente(a), Secretario(a) y Tesorero(a).');
+    const card = document.createElement('div'); card.className='card';
+    const opts = data.fundadores.map((f,i)=>({value:String(i), label: f.nombre || `Fundador(a) ${i+1}`}));
+    const j = data.junta;
+    card.appendChild(selectField('Presidente(a)', String(j.presidenteIdx), opts, v=>j.presidenteIdx=Number(v)));
+    card.appendChild(selectField('Secretario(a)', String(j.secretarioIdx), opts, v=>j.secretarioIdx=Number(v)));
+    card.appendChild(selectField('Tesorero(a)', String(j.tesoreroIdx), opts, v=>j.tesoreroIdx=Number(v)));
+    card.appendChild(field('Periodo de la Junta Directiva (años)', j.periodoAnios, v=>j.periodoAnios=v, {type:'number'}));
+    if(j.presidenteIdx===j.secretarioIdx || j.secretarioIdx===j.tesoreroIdx || j.presidenteIdx===j.tesoreroIdx){
+      const b = document.createElement('div'); b.className='banner warn'; b.textContent = 'Cada cargo debe recaer en una persona distinta.';
+      card.appendChild(b);
+    }
+    main.appendChild(card);
+    navButtons(main);
+  },
+
+  constitucion(main){
+    docHead(main, 'Paso 4 · Art. 11.2 y 12', 'Acta de Constitución', 'Se genera automáticamente con los datos ya ingresados. Solo falta la fecha, hora y el Presidente/Secretario Ad-hoc de la asamblea.');
+    const card = document.createElement('div'); card.className='card';
+    const c = data.constitucion;
+    const grid = document.createElement('div'); grid.className='grid cols-2';
+    grid.appendChild(field('Fecha de la Asamblea de Constitución', c.fecha, v=>c.fecha=v, {type:'date'}));
+    grid.appendChild(field('Hora de inicio', c.hora, v=>c.hora=v, {type:'time'}));
+    card.appendChild(grid);
+    const opts = data.fundadores.map((f,i)=>({value:String(i), label: f.nombre || `Fundador(a) ${i+1}`}));
+    card.appendChild(selectField('Presidente(a) Ad-hoc (dirige la asamblea)', String(c.presAdhocIdx), opts, v=>c.presAdhocIdx=Number(v)));
+    card.appendChild(selectField('Secretario(a) Ad-hoc (redacta el acta)', String(c.secAdhocIdx), opts, v=>c.secAdhocIdx=Number(v)));
+    main.appendChild(card);
+
+    const prevCard = document.createElement('div'); prevCard.className='card';
+    prevCard.innerHTML = '<h3>Vista previa del Acta <span class="req">Art. 11.2</span></h3>';
+    const pre = document.createElement('div'); pre.className='doc-preview'; pre.textContent = genActaConstitucion();
+    prevCard.appendChild(pre);
+    const actions = document.createElement('div'); actions.className='row-actions';
+    const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
+    dl.onclick = ()=>downloadText('Acta_de_Constitucion.txt', genActaConstitucion());
+    const cp = document.createElement('button'); cp.className='btn ghost sm'; cp.textContent='Copiar texto';
+    cp.onclick = ()=>copyText(genActaConstitucion());
+    actions.appendChild(dl); actions.appendChild(wordBtn(null, 'Acta_de_Constitucion.doc', 'Acta de Constitución', genActaConstitucion)); actions.appendChild(cp);
+    prevCard.appendChild(actions);
+    main.appendChild(prevCard);
+
+    const listCard = document.createElement('div'); listCard.className='card';
+    listCard.innerHTML = '<h3>Lista de asistencia adjunta <span class="req">Art. 11.2</span></h3>';
+    const pre2 = document.createElement('div'); pre2.className='doc-preview'; pre2.textContent = genListadoAsistencia('Formación de un grupo');
+    listCard.appendChild(pre2);
+    const row2 = document.createElement('div'); row2.className='row-actions'; row2.style.marginTop='10px';
+    const dl2 = document.createElement('button'); dl2.className='btn sm'; dl2.textContent='Descargar .txt';
+    dl2.onclick = ()=>downloadText('Listado_asistencia_constitucion.txt', genListadoAsistencia('Formación de un grupo'));
+    row2.appendChild(dl2);
+    row2.appendChild(wordBtn(null, 'Listado_asistencia_constitucion.doc', 'Lista de asistencia', ()=>genListadoAsistencia('Formación de un grupo')));
+    listCard.appendChild(row2);
+    main.appendChild(listCard);
+
+    navButtons(main);
+  },
+
+  estatuto(main){
+    docHead(main, 'Paso 5 · Art. 11.3 y 14', 'Estatuto', 'El Art. 14 exige 13 contenidos mínimos. Los primeros ya están cubiertos con los datos de la organización; completa el resto aquí.');
+    const card = document.createElement('div'); card.className='card';
+    const e = data.estatuto;
+    card.appendChild(field('Modalidad de afiliación y desafiliación de miembros', e.modalidad, v=>e.modalidad=v, {textarea:true, rows:2}));
+    card.appendChild(field('Derechos de los miembros', e.derechos, v=>e.derechos=v, {textarea:true, rows:2}));
+    card.appendChild(field('Deberes de los miembros', e.deberes, v=>e.deberes=v, {textarea:true, rows:2}));
+    card.appendChild(field('Forma de convocatoria a Junta Directiva / quórum', e.convocatoria, v=>e.convocatoria=v, {textarea:true, rows:2}));
+    const grid = document.createElement('div'); grid.className='grid cols-2';
+    grid.appendChild(field('Periodo de la Junta Directiva (años)', e.periodoJunta, v=>e.periodoJunta=v, {type:'number'}));
+    grid.appendChild(field('Reelección', e.reeleccion, v=>e.reeleccion=v, {placeholder:'Ej. se permite por un periodo adicional'}));
+    card.appendChild(grid);
+    card.appendChild(field('Forma de modificación del estatuto', e.modificacion, v=>e.modificacion=v, {textarea:true, rows:2}));
+    card.appendChild(field('Patrimonio de la organización', e.patrimonio, v=>e.patrimonio=v, {textarea:true, rows:2}));
+    card.appendChild(field('Procedimiento de disolución y liquidación', e.disolucion, v=>e.disolucion=v, {textarea:true, rows:2}));
+    card.appendChild(field('Destino de los bienes en caso de disolución', e.destinoBienes, v=>e.destinoBienes=v, {textarea:true, rows:2, hint:'Si no se define, aplica el Art. 28: donar a instituciones benéficas o de fines similares.'}));
+    main.appendChild(card);
+
+    const prevCard = document.createElement('div'); prevCard.className='card';
+    prevCard.innerHTML = '<h3>Vista previa del Estatuto <span class="req">Art. 11.3</span></h3>';
+    const pre = document.createElement('div'); pre.className='doc-preview'; pre.textContent = genEstatuto();
+    prevCard.appendChild(pre);
+    const actions = document.createElement('div'); actions.className='row-actions';
+    const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
+    dl.onclick = ()=>downloadText('Estatuto.txt', genEstatuto());
+    const cp = document.createElement('button'); cp.className='btn ghost sm'; cp.textContent='Copiar texto';
+    cp.onclick = ()=>copyText(genEstatuto());
+    actions.appendChild(dl); actions.appendChild(wordBtn(null, 'Estatuto.doc', 'Estatuto', genEstatuto)); actions.appendChild(cp);
+    prevCard.appendChild(actions);
+    main.appendChild(prevCard);
+
+    navButtons(main);
+  },
+
+  plan(main){
+    docHead(main, 'Paso 6 · Art. 11.6', 'Plan de Trabajo', 'Debe contemplar el término de al menos un año. Añade las actividades principales de tu OBC.');
+    const card = document.createElement('div'); card.className='card';
+    const p = data.plan;
+    card.appendChild(field('Periodo que cubre el plan', p.periodo, v=>p.periodo=v, {placeholder:'Ej. 2026 – 2027'}));
+    p.actividades.forEach((a,i)=>{
+      const item = document.createElement('div'); item.className='repeat-item';
+      if(p.actividades.length>1){
+        const rm = document.createElement('button'); rm.className='btn danger sm remove'; rm.textContent='Quitar';
+        rm.onclick = ()=>{ p.actividades.splice(i,1); saveData(); renderAll(); };
+        item.appendChild(rm);
+      }
+      const grid = document.createElement('div'); grid.className='grid cols-2';
+      grid.appendChild(field('Actividad', a.actividad, v=>a.actividad=v));
+      grid.appendChild(field('Objetivo relacionado', a.objetivo, v=>a.objetivo=v));
+      grid.appendChild(field('Fecha o trimestre', a.fecha, v=>a.fecha=v, {placeholder:'Ej. Q1 2026'}));
+      grid.appendChild(field('Responsable', a.responsable, v=>a.responsable=v));
+      item.appendChild(grid);
+      card.appendChild(item);
+    });
+    const addBtn = document.createElement('button'); addBtn.className='btn ghost sm'; addBtn.textContent='+ Añadir actividad';
+    addBtn.onclick = ()=>{ p.actividades.push(blankActividad()); saveData(); renderAll(); };
+    card.appendChild(addBtn);
+    main.appendChild(card);
+
+    const prevCard = document.createElement('div'); prevCard.className='card';
+    prevCard.innerHTML = '<h3>Vista previa del Plan de Trabajo <span class="req">Art. 11.6</span></h3>';
+    const pre = document.createElement('div'); pre.className='doc-preview'; pre.textContent = genPlanTrabajo();
+    prevCard.appendChild(pre);
+    const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
+    dl.onclick = ()=>downloadText('Plan_de_Trabajo.txt', genPlanTrabajo());
+    prevCard.appendChild(dl);
+    prevCard.appendChild(wordBtn(null, 'Plan_de_Trabajo.doc', 'Plan de Trabajo', genPlanTrabajo));
+    main.appendChild(prevCard);
+
+    navButtons(main);
+  },
+
+  aprobacion(main){
+    docHead(main, 'Paso 7 · Art. 11.5', 'Acta de aprobación del Estatuto y Plan de Trabajo', 'Reunión donde la Asamblea aprueba formalmente ambos documentos.');
+    const card = document.createElement('div'); card.className='card';
+    const a = data.aprobacion;
+    const grid = document.createElement('div'); grid.className='grid cols-2';
+    grid.appendChild(field('Fecha de la reunión', a.fecha, v=>a.fecha=v, {type:'date'}));
+    grid.appendChild(field('Hora de inicio', a.hora, v=>a.hora=v, {type:'time'}));
+    card.appendChild(grid);
+    main.appendChild(card);
+
+    const prevCard = document.createElement('div'); prevCard.className='card';
+    prevCard.innerHTML = '<h3>Vista previa del Acta <span class="req">Art. 11.5</span></h3>';
+    const pre = document.createElement('div'); pre.className='doc-preview'; pre.textContent = genActaAprobacion();
+    prevCard.appendChild(pre);
+    const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
+    dl.onclick = ()=>downloadText('Acta_aprobacion_estatuto_plan.txt', genActaAprobacion());
+    prevCard.appendChild(dl);
+    prevCard.appendChild(wordBtn(null, 'Acta_aprobacion_estatuto_plan.doc', 'Acta de aprobación', genActaAprobacion));
+    main.appendChild(prevCard);
+
+    const listCard = document.createElement('div'); listCard.className='card';
+    listCard.innerHTML = '<h3>Lista de asistencia adjunta</h3>';
+    const pre2 = document.createElement('div'); pre2.className='doc-preview'; pre2.textContent = genListadoAsistencia('Aprobación de Estatuto y Plan de Trabajo');
+    listCard.appendChild(pre2);
+    const row2 = document.createElement('div'); row2.className='row-actions'; row2.style.marginTop='10px';
+    const dl2 = document.createElement('button'); dl2.className='btn sm'; dl2.textContent='Descargar .txt';
+    dl2.onclick = ()=>downloadText('Listado_asistencia_aprobacion.txt', genListadoAsistencia('Aprobación de Estatuto y Plan de Trabajo'));
+    row2.appendChild(dl2);
+    row2.appendChild(wordBtn(null, 'Listado_asistencia_aprobacion.doc', 'Lista de asistencia', ()=>genListadoAsistencia('Aprobación de Estatuto y Plan de Trabajo')));
+    listCard.appendChild(row2);
+    main.appendChild(listCard);
+
+    const juntaCard = document.createElement('div'); juntaCard.className='card';
+    juntaCard.innerHTML = '<h3>Lista de la Junta Directiva y direcciones <span class="req">Art. 11.4</span></h3>';
+    const pre3 = document.createElement('div'); pre3.className='doc-preview'; pre3.textContent = genListadoJunta();
+    juntaCard.appendChild(pre3);
+    const row3 = document.createElement('div'); row3.className='row-actions'; row3.style.marginTop='10px';
+    const dl3 = document.createElement('button'); dl3.className='btn sm'; dl3.textContent='Descargar .txt';
+    dl3.onclick = ()=>downloadText('Listado_Junta_Directiva.txt', genListadoJunta());
+    row3.appendChild(dl3);
+    row3.appendChild(wordBtn(null, 'Listado_Junta_Directiva.doc', 'Lista de la Junta Directiva', genListadoJunta));
+    juntaCard.appendChild(row3);
+    main.appendChild(juntaCard);
+
+    navButtons(main);
+  },
+
+  solicitud(main){
+    docHead(main, 'Paso 8 · Art. 11.1', 'Nota de solicitud', 'Carta de presentación dirigida a la Dirección Regional del Ministerio de Ambiente correspondiente al domicilio de la OBC.');
+    const card = document.createElement('div'); card.className='card';
+    const s = data.solicitud;
+    const grid = document.createElement('div'); grid.className='grid cols-2';
+    grid.appendChild(field('Fecha de la nota', s.fecha, v=>s.fecha=v, {type:'date'}));
+    grid.appendChild(field('Dirección Regional del Ministerio de Ambiente', s.direccionRegional, v=>s.direccionRegional=v, {placeholder:'Ej. Panamá Este'}));
+    card.appendChild(grid);
+    card.appendChild(field('Nombre del funcionario(a) a quien se dirige', s.funcionario, v=>s.funcionario=v, {placeholder:'Ej. Ingeniera Aida Magaña'}));
+    main.appendChild(card);
+
+    const prevCard = document.createElement('div'); prevCard.className='card';
+    prevCard.innerHTML = '<h3>Vista previa de la Nota <span class="req">Art. 11.1</span></h3>';
+    const pre = document.createElement('div'); pre.className='doc-preview'; pre.textContent = genNota();
+    prevCard.appendChild(pre);
+    const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
+    dl.onclick = ()=>downloadText('Nota_de_solicitud.txt', genNota());
+    prevCard.appendChild(dl);
+    prevCard.appendChild(wordBtn(null, 'Nota_de_solicitud.doc', 'Nota de solicitud', genNota));
+    main.appendChild(prevCard);
+
+    navButtons(main);
+  },
+
+  expediente(main){
+    docHead(main, 'Paso 9 · Cierre del expediente', 'Expediente final', 'Revisa que todo esté listo antes de presentarlo a la Dirección Regional del Ministerio de Ambiente.');
+
+    const checklistCard = document.createElement('div'); checklistCard.className='card';
+    checklistCard.innerHTML = '<h3>Checklist — Artículo 11</h3>';
+    const items = [
+      ['Nota de solicitud', 'solicitud'],
+      ['Acta de Constitución + lista de asistencia', 'constitucion'],
+      ['Lista de la Junta Directiva y direcciones', 'junta'],
+      ['Copias de cédulas de la Junta Directiva (fuera de esta app)', null],
+      ['Acta de aprobación del Estatuto y Plan de Trabajo + lista de asistencia', 'aprobacion'],
+      ['Estatuto', 'estatuto'],
+      ['Plan de Trabajo (mínimo 1 año)', 'plan'],
+    ];
+    const ul = document.createElement('ul'); ul.className='checklist';
+    items.forEach(([label, key])=>{
+      const li = document.createElement('li');
+      const done = key ? isDone(key) : false;
+      li.className = done ? 'done' : '';
+      li.innerHTML = `<span class="mark">${done?'✓':''}</span><span>${label}</span>`;
+      ul.appendChild(li);
+    });
+    checklistCard.appendChild(ul);
+    if(items.every(([l,k])=>!k || isDone(k))){
+      const s = document.createElement('div'); s.style.marginTop='16px';
+      s.innerHTML = '<span class="stamp ok">Expediente completo</span>';
+      checklistCard.appendChild(s);
+    } else {
+      const s = document.createElement('div'); s.style.marginTop='16px';
+      s.innerHTML = '<span class="stamp">Faltan datos por completar</span>';
+      checklistCard.appendChild(s);
+    }
+    main.appendChild(checklistCard);
+
+    const docsCard = document.createElement('div'); docsCard.className='card';
+    docsCard.innerHTML = '<h3>Descargar todos los documentos</h3>';
+    const docs = [
+      ['Nota de solicitud', genNota, 'Nota_de_solicitud.txt'],
+      ['Acta de Constitución', genActaConstitucion, 'Acta_de_Constitucion.txt'],
+      ['Lista de asistencia — constitución', ()=>genListadoAsistencia('Formación de un grupo'), 'Listado_asistencia_constitucion.txt'],
+      ['Lista de la Junta Directiva', genListadoJunta, 'Listado_Junta_Directiva.txt'],
+      ['Estatuto', genEstatuto, 'Estatuto.txt'],
+      ['Plan de Trabajo', genPlanTrabajo, 'Plan_de_Trabajo.txt'],
+      ['Acta de aprobación de Estatuto y Plan', genActaAprobacion, 'Acta_aprobacion_estatuto_plan.txt'],
+      ['Lista de asistencia — aprobación', ()=>genListadoAsistencia('Aprobación de Estatuto y Plan de Trabajo'), 'Listado_asistencia_aprobacion.txt'],
+    ];
+    const summaryGrid = document.createElement('div'); summaryGrid.className='summary-grid';
+    docs.forEach(([label, gen, filename])=>{
+      const box = document.createElement('div'); box.className='summary-doc';
+      box.innerHTML = `<h4>${label}</h4><div class="meta">${filename}</div>`;
+      const row = document.createElement('div'); row.className='row-actions';
+      const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='.txt';
+      dl.onclick = ()=>downloadText(filename, gen());
+      const wd = wordBtn('Word (.doc)', filename, label, gen);
+      const cp = document.createElement('button'); cp.className='btn ghost sm'; cp.textContent='Copiar';
+      cp.onclick = ()=>copyText(gen());
+      row.appendChild(dl); row.appendChild(wd); row.appendChild(cp);
+      box.appendChild(row);
+      summaryGrid.appendChild(box);
+    });
+    docsCard.appendChild(summaryGrid);
+
+    const nombreBase = (data.org.siglas||data.org.nombre||'OBC').replace(/[^A-Za-z0-9]+/g,'_');
+    const actionsFinal = document.createElement('div'); actionsFinal.className='row-actions'; actionsFinal.style.marginTop='20px';
+    const allBtn = document.createElement('button'); allBtn.className='btn ghost'; allBtn.textContent='Descargar todo en .txt (un solo archivo)';
+    allBtn.onclick = ()=>{
+      const full = docs.map(([label,gen])=>`${'='.repeat(70)}\n${label.toUpperCase()}\n${'='.repeat(70)}\n\n${gen()}\n\n`).join('\n');
+      downloadText(`Expediente_OBC_${nombreBase}.txt`, full);
+    };
+    const allWordBtn = document.createElement('button'); allWordBtn.className='btn'; allWordBtn.textContent='Descargar expediente completo en Word (.doc)';
+    allWordBtn.onclick = ()=>{
+      const bodyHtml = docs.map(([label,gen], i)=>{
+        const pageBreak = i===0 ? '' : `style="page-break-before:always;"`;
+        return `<div ${pageBreak}>${textToWordBody(`${label.toUpperCase()}\n\n${gen()}`)}</div>`;
+      }).join('\n');
+      const html = buildWordDoc(`Expediente OBC — ${data.org.nombre||''}`, bodyHtml, true);
+      const blob = new Blob(['\ufeff', html], {type:'application/msword'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download = `Expediente_OBC_${nombreBase}.doc`; a.click();
+      URL.revokeObjectURL(url);
+    };
+    actionsFinal.appendChild(allWordBtn); actionsFinal.appendChild(allBtn);
+    docsCard.appendChild(actionsFinal);
+    main.appendChild(docsCard);
+
+    const reminderCard = document.createElement('div'); reminderCard.className='card';
+    reminderCard.innerHTML = `<h3>Recordatorios finales</h3>
+      <div class="banner">Presenta el expediente en un plazo no mayor de 30 días calendario desde la Asamblea de Constitución (Art. 10).</div>
+      <div class="banner">Adjunta copias de cédula (o carnet de residente) de cada miembro de la Junta Directiva (Art. 11.5).</div>
+      <div class="banner">Una vez reconocida, la OBC deberá llevar libro de actas, registro de miembros y libros contables, y presentar un informe anual dentro de los 90 días siguientes a cada año de gestión (Art. 19 y 21).</div>`;
+    main.appendChild(reminderCard);
+
+    navButtons(main);
+  },
+};
+
+/* ============ INICIO ============ */
+(async function init(){
+  await loadData();
+  // saneamiento por si faltan campos tras cargar datos guardados de versiones previas
+  data.plan.actividades = data.plan.actividades && data.plan.actividades.length ? data.plan.actividades : [blankActividad()];
+  data.fundadores = data.fundadores && data.fundadores.length >= 3 ? data.fundadores : [blankFundador(), blankFundador(), blankFundador()];
+  renderAll();
+})();
+</script>
+</body>
+</html>
