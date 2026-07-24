@@ -183,6 +183,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
 <script>
 /* ============ MODELO DE DATOS ============ */
 const STEPS = [
@@ -222,7 +223,7 @@ function baymetOrgDefaults(){
     comunidad:'Loma Naranjo',
     direccion:'Comunidad de Loma Naranjo, corregimiento de Cañita, distrito de Chepo, provincia de Panamá. (Pendiente precisar el punto exacto de reunión, ej. referencia visual del local.)',
     ambito:'Principalmente la provincia de Panamá, con especial atención a la cuenca del Lago Bayano, pudiendo extender su ámbito de actuación a nivel nacional e internacional mediante alianzas, convenios o proyectos que contribuyan al cumplimiento de sus objetivos.',
-    objetivos:'a) Generar conocimiento científico sobre las emisiones de metano y otros gases de efecto invernadero en Panamá.\nb) Fortalecer las capacidades comunitarias para el monitoreo ambiental participativo.\nc) Desarrollar e implementar tecnologías de sensores y análisis de datos aplicadas al ambiente.\nd) Contribuir a la formulación de políticas públicas ambientales basadas en evidencia.\ne) Formar nuevas generaciones de investigadores y líderes ambientales.\nf) Promover el desarrollo integral de las comunidades de su área de influencia, con base en los pilares ambiental, social y educativo.',
+    objetivos:'a) Generar conocimiento científico sobre las emisiones de metano y otros gases de efecto invernadero en Panamá.\nb) Fortalecer las capacidades comunitarias para el monitoreo ambiental participativo.\nc) Desarrollar e implementar tecnologías de sensores y análisis de datos aplicadas al ambiente.\nd) Contribuir a la formulación de políticas públicas ambientales basadas en evidencia.\ne) Formar nuevas generaciones de investigadores y líderes ambientales.\nf) Promover el desarrollo integral de las comunidades de su área de influencia, con base en los pilares ambiental, social y educativo.\ng) Monitorear e investigar las emisiones de metano en el Lago Bayano mediante sensores y boyas flotantes con GPS.',
     fines:'a) Contribuir al bienestar de la población mediante acciones ambientales, científicas, sociales y educativas.\nb) Promover una cultura de sostenibilidad, responsabilidad social y conciencia ambiental frente al cambio climático.\nc) Fortalecer las capacidades de niños, jóvenes y adultos en las comunidades vinculadas a la organización.\nd) Apoyar iniciativas comunitarias que impulsen el desarrollo local sostenible.',
     actividades:'a) Diseño, instalación y operación de redes de sensores y estaciones de monitoreo ambiental.\nb) Recolección, procesamiento y análisis de datos científicos, y publicación de sus resultados.\nc) Desarrollo de talleres, capacitaciones, seminarios y campañas de educación ambiental y ciencia ciudadana.\nd) Organización de actividades comunitarias, educativas y de voluntariado.\ne) Establecimiento de alianzas con instituciones públicas, privadas y organismos nacionales e internacionales.\nf) Gestión y administración de fondos, donaciones y subvenciones destinados a sus fines.',
   };
@@ -251,6 +252,7 @@ function cargarDatosBaymet(){
 }
 
 let currentStep = 0;
+let media = { firmas:{}, cedulas:{} }; // media.firmas[idx] / media.cedulas[idx] = dataURL (base64)
 
 /* ============ PERSISTENCIA ============ */
 async function loadData(){
@@ -261,6 +263,12 @@ async function loadData(){
       data = Object.assign(data, saved);
     }
   }catch(e){ /* no hay datos guardados aún */ }
+  try{
+    const resMedia = await window.storage.get('obc-media', false);
+    if(resMedia && resMedia.value){
+      media = Object.assign(media, JSON.parse(resMedia.value));
+    }
+  }catch(e){ /* no hay medios guardados aún */ }
 }
 let saveTimer=null;
 function saveData(){
@@ -269,6 +277,34 @@ function saveData(){
     try{ await window.storage.set('obc-expediente', JSON.stringify(data), false); }
     catch(e){ console.error('No se pudo guardar', e); }
   }, 350);
+}
+let saveMediaTimer=null;
+function saveMedia(){
+  clearTimeout(saveMediaTimer);
+  saveMediaTimer = setTimeout(async ()=>{
+    try{ await window.storage.set('obc-media', JSON.stringify(media), false); }
+    catch(e){ console.error('No se pudo guardar la firma/foto (puede ser demasiado grande)', e); showToast('No se pudo guardar la imagen — prueba con una foto más pequeña'); }
+  }, 350);
+}
+function resizeImageFile(file, maxDim, quality){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = ()=>reject(new Error('No se pudo leer el archivo'));
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=>reject(new Error('No se pudo leer la imagen'));
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h * maxDim/w); w = maxDim; }
+        else if(h > maxDim){ w = Math.round(w * maxDim/h); h = maxDim; }
+        const canvas = document.createElement('canvas'); canvas.width=w; canvas.height=h;
+        const ctx = canvas.getContext('2d'); ctx.drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function showToast(msg){
@@ -339,6 +375,78 @@ function selectField(labelTxt, value, options, onChange){
 }
 function refreshStepperOnly(){ renderStepper(); }
 
+/* ===== Firma digital (canvas) y foto de cédula ===== */
+function signaturePadWidget(idx){
+  const wrap = document.createElement('div'); wrap.className='field';
+  const lab = document.createElement('label'); lab.textContent = 'Firma digital (opcional — dibuja con el mouse o el dedo)'; wrap.appendChild(lab);
+  const canvasWrap = document.createElement('div');
+  canvasWrap.style.cssText = 'border:1px solid var(--line); border-radius:4px; background:#fff; touch-action:none;';
+  const canvas = document.createElement('canvas'); canvas.width=400; canvas.height=120; canvas.style.cssText='width:100%; height:120px; display:block; cursor:crosshair;';
+  canvasWrap.appendChild(canvas);
+  wrap.appendChild(canvasWrap);
+
+  const ctx = canvas.getContext('2d');
+  ctx.lineWidth = 2; ctx.lineCap='round'; ctx.strokeStyle = '#1a1a1a';
+  let drawing = false, hasDrawn = false;
+  const existing = media.firmas[idx];
+  if(existing){
+    const img = new Image(); img.onload = ()=>ctx.drawImage(img,0,0,canvas.width,canvas.height); img.src = existing;
+    hasDrawn = true;
+  }
+  function pos(ev){
+    const r = canvas.getBoundingClientRect();
+    const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+    const cy = (ev.touches ? ev.touches[0].clientY : ev.clientY) - r.top;
+    return { x: cx * (canvas.width/r.width), y: cy * (canvas.height/r.height) };
+  }
+  function start(ev){ drawing=true; hasDrawn=true; const p=pos(ev); ctx.beginPath(); ctx.moveTo(p.x,p.y); ev.preventDefault(); }
+  function move(ev){ if(!drawing) return; const p=pos(ev); ctx.lineTo(p.x,p.y); ctx.stroke(); ev.preventDefault(); }
+  function end(){ if(!drawing) return; drawing=false; media.firmas[idx] = canvas.toDataURL('image/png'); saveMedia(); }
+  canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchmove', move, {passive:false}); canvas.addEventListener('touchend', end);
+
+  const actions = document.createElement('div'); actions.className='row-actions'; actions.style.marginTop='6px';
+  const clearBtn = document.createElement('button'); clearBtn.className='btn ghost sm'; clearBtn.type='button'; clearBtn.textContent='Borrar firma';
+  clearBtn.onclick = ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawn=false; delete media.firmas[idx]; saveMedia(); };
+  actions.appendChild(clearBtn);
+  wrap.appendChild(actions);
+  const hint = document.createElement('div'); hint.className='hint'; hint.textContent = 'Se usará al generar el Acta de Constitución en Word. Si prefieres, deja esto en blanco y firma a mano sobre el documento impreso.';
+  wrap.appendChild(hint);
+  return wrap;
+}
+
+function cedulaPhotoWidget(idx){
+  const wrap = document.createElement('div'); wrap.className='field';
+  const lab = document.createElement('label'); lab.textContent = 'Foto de cédula (opcional — frente)'; wrap.appendChild(lab);
+  const preview = document.createElement('div');
+  preview.style.cssText = 'border:1px solid var(--line); border-radius:4px; background:#fff; min-height:70px; display:flex; align-items:center; justify-content:center; overflow:hidden; margin-bottom:8px;';
+  function renderPreview(){
+    preview.innerHTML='';
+    const url = media.cedulas[idx];
+    if(url){ const img = document.createElement('img'); img.src=url; img.style.cssText='max-width:100%; max-height:140px; display:block;'; preview.appendChild(img); }
+    else { const span = document.createElement('span'); span.className='hint'; span.textContent='Sin foto adjunta'; preview.appendChild(span); }
+  }
+  renderPreview();
+  wrap.appendChild(preview);
+  const input = document.createElement('input'); input.type='file'; input.accept='image/*'; input.capture='environment';
+  input.addEventListener('change', async ()=>{
+    const file = input.files[0]; if(!file) return;
+    try{
+      const dataUrl = await resizeImageFile(file, 900, 0.7);
+      media.cedulas[idx] = dataUrl; saveMedia(); renderPreview();
+      showToast('Foto de cédula guardada');
+    }catch(err){ showToast('No se pudo procesar la imagen'); }
+  });
+  wrap.appendChild(input);
+  const rm = document.createElement('button'); rm.className='btn ghost sm'; rm.type='button'; rm.textContent='Quitar foto'; rm.style.marginTop='6px';
+  rm.style.display = media.cedulas[idx] ? 'inline-block' : 'none';
+  rm.onclick = ()=>{ delete media.cedulas[idx]; saveMedia(); renderPreview(); rm.style.display='none'; };
+  wrap.appendChild(rm);
+  const origRenderPreview = renderPreview;
+  renderPreview = function(){ origRenderPreview(); rm.style.display = media.cedulas[idx] ? 'inline-block' : 'none'; };
+  return wrap;
+}
+
 function navButtons(container){
   const nav = document.createElement('div'); nav.className='nav-buttons';
   const prev = document.createElement('button'); prev.className='btn ghost'; prev.textContent='← Anterior';
@@ -360,10 +468,7 @@ function copyText(content){
   navigator.clipboard.writeText(content).then(()=>showToast('Copiado al portapapeles')).catch(()=>showToast('No se pudo copiar'));
 }
 
-/* ============ EXPORTACIÓN A WORD (.doc) ============ */
-function escapeHtml(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+/* ============ EXPORTACIÓN A WORD (.docx real, con la librería docx.js) ============ */
 function isHeadingLine(line){
   const t = line.trim();
   if(!t) return false;
@@ -374,68 +479,92 @@ function isHeadingLine(line){
 function isArticleLine(line){
   return /^(Artículo|Capítulo|CAPITULO)\b/i.test(line.trim());
 }
-function textToWordBody(text){
+function waitForDocxLib(){
+  return new Promise((resolve)=>{
+    if(window.docx){ resolve(); return; }
+    const check = setInterval(()=>{ if(window.docx){ clearInterval(check); resolve(); } }, 150);
+    setTimeout(()=>{ clearInterval(check); resolve(); }, 10000);
+  });
+}
+function dataUrlToUint8Array(dataUrl){
+  const base64 = dataUrl.split(',')[1];
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+function imageTypeFromDataUrl(dataUrl){
+  const m = dataUrl.match(/^data:image\/(png|jpeg|jpg|gif|bmp);/i);
+  const t = m ? m[1].toLowerCase() : 'png';
+  return t === 'jpg' ? 'jpeg' : t;
+}
+function textToDocxParagraphs(text){
+  const { Paragraph, TextRun, AlignmentType, BorderStyle } = docx;
   const lines = text.split('\n');
-  let html = '';
+  const paras = [];
   lines.forEach(raw=>{
     const line = raw.replace(/\t/g,'    ');
-    if(!line.trim()){
-      html += `<p style="margin:0 0 8pt 0;">&nbsp;</p>\n`;
+    if(!line.trim()){ paras.push(new Paragraph({ spacing:{after:120} })); return; }
+    if(/^-{5,}$|^={5,}$/.test(line.trim())){
+      paras.push(new Paragraph({ spacing:{after:100}, border:{ bottom:{ color:'999999', space:1, style:BorderStyle.SINGLE, size:4 } } }));
       return;
     }
-    const esc = escapeHtml(line);
     if(isHeadingLine(line)){
-      html += `<p style="text-align:center;font-weight:bold;font-size:13pt;margin:18pt 0 10pt 0;">${esc}</p>\n`;
-    } else if(isArticleLine(line)){
-      html += `<p style="font-weight:bold;margin:12pt 0 4pt 0;">${esc}</p>\n`;
-    } else if(/^-{5,}$|^={5,}$/.test(line.trim())){
-      html += `<p style="margin:2pt 0;border-bottom:1px solid #000;">&nbsp;</p>\n`;
-    } else {
-      html += `<p style="text-align:justify;margin:0 0 8pt 0;font-family:'Cambria','Times New Roman',serif;">${esc}</p>\n`;
+      paras.push(new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:260, after:180}, children:[ new TextRun({text:line, bold:true, size:27}) ] }));
+      return;
     }
+    if(isArticleLine(line)){
+      paras.push(new Paragraph({ spacing:{before:180, after:60}, children:[ new TextRun({text:line, bold:true}) ] }));
+      return;
+    }
+    paras.push(new Paragraph({ alignment:AlignmentType.JUSTIFIED, spacing:{after:140, line:280}, children:[ new TextRun({text:line}) ] }));
   });
-  return html;
+  return paras;
 }
-function buildWordDoc(titleForHead, bodyHtmlOrText, isRawHtml){
-  const bodyHtml = isRawHtml ? bodyHtmlOrText : textToWordBody(bodyHtmlOrText);
-  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-<meta charset="utf-8">
-<title>${escapeHtml(titleForHead)}</title>
-<!--[if gte mso 9]>
-<xml>
-<w:WordDocument>
-<w:View>Print</w:View>
-<w:Zoom>100</w:Zoom>
-<w:DoNotOptimizeForBrowser/>
-</w:WordDocument>
-</xml>
-<![endif]-->
-<style>
-  @page Section1 { size:8.5in 11in; margin:1in 1in 1in 1in; }
-  div.Section1 { page:Section1; }
-  body{ font-family:'Cambria','Times New Roman',serif; font-size:11.5pt; color:#000; }
-  p{ line-height:1.4; }
-</style>
-</head>
-<body>
-<div class="Section1">
-${bodyHtml}
-</div>
-</body>
-</html>`;
+function docxImageParagraph(dataUrl, widthPx, heightPx, placeholderText){
+  const { Paragraph, ImageRun, TextRun, AlignmentType } = docx;
+  if(!dataUrl){
+    return new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:100}, children:[ new TextRun({text: placeholderText || '', italics:true, size:17, color:'a3372b'}) ] });
+  }
+  try{
+    return new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:100}, children:[ new ImageRun({ type: imageTypeFromDataUrl(dataUrl), data: dataUrlToUint8Array(dataUrl), transformation:{width:widthPx, height:heightPx} }) ] });
+  }catch(e){
+    return new Paragraph({ alignment:AlignmentType.CENTER, children:[ new TextRun({text:'(no se pudo insertar la imagen)', italics:true, size:17}) ] });
+  }
 }
-function downloadWordDoc(filename, title, text){
-  const html = buildWordDoc(title, text, false);
-  const blob = new Blob(['\ufeff', html], {type:'application/msword'});
+function noBordersTable(rows){
+  const { Table, WidthType, BorderStyle } = docx;
+  const none = { style:BorderStyle.NONE, size:0, color:'FFFFFF' };
+  return new Table({ width:{size:100, type:WidthType.PERCENTAGE}, borders:{ top:none, bottom:none, left:none, right:none, insideHorizontal:none, insideVertical:none }, rows });
+}
+function headerCell(text){
+  const { TableCell, Paragraph, TextRun } = docx;
+  return new TableCell({ children:[ new Paragraph({ children:[ new TextRun({text, bold:true}) ] }) ] });
+}
+function textCell(text){
+  const { TableCell, Paragraph } = docx;
+  return new TableCell({ children:[ new Paragraph(String(text||'—')) ] });
+}
+async function buildAndDownloadDocx(filename, children){
+  await waitForDocxLib();
+  if(!window.docx){ showToast('No se pudo cargar el generador de Word — revisa tu conexión a internet e intenta de nuevo'); return; }
+  const { Document, Packer } = docx;
+  const doc = new Document({ sections:[{ properties:{ page:{ margin:{ top:1440, bottom:1440, left:1440, right:1440 } } }, children }] });
+  const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download = filename.endsWith('.doc') ? filename : filename.replace(/\.txt$/,'') + '.doc';
+  const a = document.createElement('a'); a.href=url;
+  a.download = filename.endsWith('.docx') ? filename : filename.replace(/\.(txt|doc)$/,'') + '.docx';
   a.click();
   URL.revokeObjectURL(url);
 }
 function wordBtn(label, filename, title, textFn){
-  const b = document.createElement('button'); b.className='btn sm'; b.textContent = label || 'Descargar Word (.doc)';
-  b.onclick = ()=>downloadWordDoc(filename, title, textFn());
+  const b = document.createElement('button'); b.className='btn sm'; b.textContent = label || 'Descargar Word (.docx)';
+  b.onclick = async ()=>{ await buildAndDownloadDocx(filename, textToDocxParagraphs(textFn())); };
+  return b;
+}
+function wordBtnDocx(label, filename, childrenFn){
+  const b = document.createElement('button'); b.className='btn sm'; b.textContent = label || 'Descargar Word (.docx)';
+  b.onclick = async ()=>{ await waitForDocxLib(); await buildAndDownloadDocx(filename, childrenFn()); };
   return b;
 }
 
@@ -672,6 +801,74 @@ ${filaJunta('Tesorero(a)', j.tesoreroIdx)}
 Nota: adjuntar copia de cédula (o carnet de residente) de cada miembro de la Junta Directiva, conforme al Artículo 11, numeral 5, del Decreto Ejecutivo N.º 32 de 2017.`;
 }
 
+/* ===== Versiones Word (docx real) con firmas y fotos de cédula incrustadas ===== */
+function genActaConstitucionDocxChildren(){
+  const { Paragraph, Table, TableRow, TableCell, TextRun, WidthType, AlignmentType } = docx;
+  const c = data.constitucion, f = data.fundadores;
+  const bodyText = genActaConstitucion().replace(/\n_{5,}\s+_{5,}\nPresidente\(a\) Ad hoc\s+Secretario\(a\) Ad hoc/, '');
+  const children = textToDocxParagraphs(bodyText);
+
+  const sigCell = (idx, cargo)=> new TableCell({
+    width:{size:50, type:WidthType.PERCENTAGE},
+    children:[
+      docxImageParagraph(media.firmas[idx], 150, 45, ' '),
+      new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:60}, children:[new TextRun({text:'_______________________'})] }),
+      new Paragraph({ alignment:AlignmentType.CENTER, children:[new TextRun({text: nombreFundador(idx)})] }),
+      new Paragraph({ alignment:AlignmentType.CENTER, children:[new TextRun({text:cargo, size:19})] }),
+    ]
+  });
+  children.push(new Paragraph({ spacing:{before:200} }));
+  children.push(noBordersTable([ new TableRow({ children:[ sigCell(c.presAdhocIdx,'Presidente(a) Ad hoc'), sigCell(c.secAdhocIdx,'Secretario(a) Ad hoc') ] }) ]));
+
+  children.push(new Paragraph({ pageBreakBefore:true, alignment:AlignmentType.CENTER, spacing:{after:200}, children:[new TextRun({text:'ANEXO — LISTADO Y FIRMAS DE LOS MIEMBROS FUNDADORES', bold:true})] }));
+
+  const rows = [ new TableRow({ children:[ headerCell('N°'), headerCell('Nombre'), headerCell('Cédula'), headerCell('Firma') ] }) ];
+  f.forEach((m,i)=>{
+    rows.push(new TableRow({ children:[
+      textCell(i+1), textCell(m.nombre), textCell(m.cedula),
+      new TableCell({ children:[ docxImageParagraph(media.firmas[i], 110, 33, '') ] }),
+    ]}));
+  });
+  children.push(new Table({ width:{size:100, type:WidthType.PERCENTAGE}, rows }));
+  return children;
+}
+function genListadoJuntaDocxChildren(){
+  const { Paragraph, TableRow, TableCell, TextRun, WidthType, AlignmentType } = docx;
+  const children = textToDocxParagraphs(genListadoJunta());
+  const j = data.junta;
+  const cargos = [['Presidente(a)', j.presidenteIdx], ['Secretario(a)', j.secretarioIdx], ['Tesorero(a)', j.tesoreroIdx]];
+  children.push(new Paragraph({ spacing:{before:220, after:160}, children:[new TextRun({text:'ANEXO — COPIAS DE CÉDULA DE LA JUNTA DIRECTIVA', bold:true})] }));
+  const cells = cargos.map(([cargo, idx])=> new TableCell({
+    width:{size:33, type:WidthType.PERCENTAGE},
+    children:[
+      new Paragraph({alignment:AlignmentType.CENTER, children:[new TextRun({text:cargo, bold:true})]}),
+      new Paragraph({alignment:AlignmentType.CENTER, spacing:{after:100}, children:[new TextRun({text: nombreFundador(idx)})]}),
+      docxImageParagraph(media.cedulas[idx], 170, 110, '(sin foto de cédula adjunta)'),
+    ]
+  }));
+  children.push(noBordersTable([ new TableRow({ children: cells }) ]));
+  return children;
+}
+function genListadoAsistenciaDocxChildren(titulo){
+  const { Paragraph, Table, TableRow, TableCell, TextRun, WidthType, AlignmentType } = docx;
+  const o = data.org;
+  const children = [
+    new Paragraph({alignment:AlignmentType.CENTER, spacing:{after:60}, children:[new TextRun({text:'LISTA DE ASISTENCIA', bold:true, size:27})]}),
+    new Paragraph({alignment:AlignmentType.CENTER, spacing:{after:180}, children:[new TextRun({text:titulo})]}),
+    new Paragraph({spacing:{after:40}, children:[new TextRun({text:`Comunidad de: ${o.comunidad||'____________'}    Corregimiento de: ${o.corregimiento||'____________'}`})]}),
+    new Paragraph({spacing:{after:200}, children:[new TextRun({text:'Fecha: ____________________'})]}),
+  ];
+  const rows = [ new TableRow({ children:[ headerCell('N°'), headerCell('Nombre'), headerCell('Cédula'), headerCell('Firma') ] }) ];
+  data.fundadores.forEach((f,i)=>{
+    rows.push(new TableRow({ children:[
+      textCell(i+1), textCell(f.nombre), textCell(f.cedula),
+      new TableCell({ children:[ docxImageParagraph(media.firmas[i], 110, 33, '') ] }),
+    ]}));
+  });
+  children.push(new Table({ width:{size:100, type:WidthType.PERCENTAGE}, rows }));
+  return children;
+}
+
 /* ============ RENDER DE PASOS ============ */
 function renderAll(){
   renderStepper();
@@ -751,7 +948,7 @@ const RENDERERS = {
   },
 
   fundadores(main){
-    docHead(main, 'Paso 2 · Art. 8 y 9', 'Miembros fundadores', 'Se requieren al menos 3 miembros fundadores, mayores de 16 años y residentes permanentes de la comunidad.');
+    docHead(main, 'Paso 2 · Art. 8 y 9', 'Miembros fundadores', 'Se requieren al menos 3 miembros fundadores, mayores de 16 años y residentes permanentes de la comunidad. Puedes dibujar la firma de cada uno y adjuntar la foto de su cédula — se incluirán en el Acta y en el Word final.');
     const card = document.createElement('div'); card.className='card';
     if(data.fundadores.length < 3){
       const b = document.createElement('div'); b.className='banner warn'; b.textContent = `Actualmente hay ${data.fundadores.length} fundador(es). El Decreto exige un mínimo de 3.`;
@@ -773,6 +970,10 @@ const RENDERERS = {
       item.appendChild(selectField('Sexo (para el conteo del Acta de Constitución)', f.genero, [
         {value:'', label:'Seleccionar…'}, {value:'F', label:'Mujer'}, {value:'M', label:'Hombre'}
       ], v=>f.genero=v));
+      const mediaGrid = document.createElement('div'); mediaGrid.className='grid cols-2'; mediaGrid.style.marginTop='10px';
+      mediaGrid.appendChild(signaturePadWidget(i));
+      mediaGrid.appendChild(cedulaPhotoWidget(i));
+      item.appendChild(mediaGrid);
       card.appendChild(item);
     });
     const addBtn = document.createElement('button'); addBtn.className='btn ghost sm'; addBtn.textContent='+ Añadir fundador(a)';
@@ -821,7 +1022,7 @@ const RENDERERS = {
     dl.onclick = ()=>downloadText('Acta_de_Constitucion.txt', genActaConstitucion());
     const cp = document.createElement('button'); cp.className='btn ghost sm'; cp.textContent='Copiar texto';
     cp.onclick = ()=>copyText(genActaConstitucion());
-    actions.appendChild(dl); actions.appendChild(wordBtn(null, 'Acta_de_Constitucion.doc', 'Acta de Constitución', genActaConstitucion)); actions.appendChild(cp);
+    actions.appendChild(dl); actions.appendChild(wordBtnDocx(null, 'Acta_de_Constitucion.docx', genActaConstitucionDocxChildren)); actions.appendChild(cp);
     prevCard.appendChild(actions);
     main.appendChild(prevCard);
 
@@ -833,7 +1034,7 @@ const RENDERERS = {
     const dl2 = document.createElement('button'); dl2.className='btn sm'; dl2.textContent='Descargar .txt';
     dl2.onclick = ()=>downloadText('Listado_asistencia_constitucion.txt', genListadoAsistencia('Formación de un grupo'));
     row2.appendChild(dl2);
-    row2.appendChild(wordBtn(null, 'Listado_asistencia_constitucion.doc', 'Lista de asistencia', ()=>genListadoAsistencia('Formación de un grupo')));
+    row2.appendChild(wordBtnDocx(null, 'Listado_asistencia_constitucion.docx', ()=>genListadoAsistenciaDocxChildren('Formación de un grupo')));
     listCard.appendChild(row2);
     main.appendChild(listCard);
 
@@ -867,7 +1068,7 @@ const RENDERERS = {
     dl.onclick = ()=>downloadText('Estatuto.txt', genEstatuto());
     const cp = document.createElement('button'); cp.className='btn ghost sm'; cp.textContent='Copiar texto';
     cp.onclick = ()=>copyText(genEstatuto());
-    actions.appendChild(dl); actions.appendChild(wordBtn(null, 'Estatuto.doc', 'Estatuto', genEstatuto)); actions.appendChild(cp);
+    actions.appendChild(dl); actions.appendChild(wordBtn(null, 'Estatuto.docx', 'Estatuto', genEstatuto)); actions.appendChild(cp);
     prevCard.appendChild(actions);
     main.appendChild(prevCard);
 
@@ -906,7 +1107,7 @@ const RENDERERS = {
     const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
     dl.onclick = ()=>downloadText('Plan_de_Trabajo.txt', genPlanTrabajo());
     prevCard.appendChild(dl);
-    prevCard.appendChild(wordBtn(null, 'Plan_de_Trabajo.doc', 'Plan de Trabajo', genPlanTrabajo));
+    prevCard.appendChild(wordBtn(null, 'Plan_de_Trabajo.docx', 'Plan de Trabajo', genPlanTrabajo));
     main.appendChild(prevCard);
 
     navButtons(main);
@@ -929,7 +1130,7 @@ const RENDERERS = {
     const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
     dl.onclick = ()=>downloadText('Acta_aprobacion_estatuto_plan.txt', genActaAprobacion());
     prevCard.appendChild(dl);
-    prevCard.appendChild(wordBtn(null, 'Acta_aprobacion_estatuto_plan.doc', 'Acta de aprobación', genActaAprobacion));
+    prevCard.appendChild(wordBtn(null, 'Acta_aprobacion_estatuto_plan.docx', 'Acta de aprobación', genActaAprobacion));
     main.appendChild(prevCard);
 
     const listCard = document.createElement('div'); listCard.className='card';
@@ -940,7 +1141,7 @@ const RENDERERS = {
     const dl2 = document.createElement('button'); dl2.className='btn sm'; dl2.textContent='Descargar .txt';
     dl2.onclick = ()=>downloadText('Listado_asistencia_aprobacion.txt', genListadoAsistencia('Aprobación de Estatuto y Plan de Trabajo'));
     row2.appendChild(dl2);
-    row2.appendChild(wordBtn(null, 'Listado_asistencia_aprobacion.doc', 'Lista de asistencia', ()=>genListadoAsistencia('Aprobación de Estatuto y Plan de Trabajo')));
+    row2.appendChild(wordBtnDocx(null, 'Listado_asistencia_aprobacion.docx', ()=>genListadoAsistenciaDocxChildren('Aprobación de Estatuto y Plan de Trabajo')));
     listCard.appendChild(row2);
     main.appendChild(listCard);
 
@@ -952,7 +1153,7 @@ const RENDERERS = {
     const dl3 = document.createElement('button'); dl3.className='btn sm'; dl3.textContent='Descargar .txt';
     dl3.onclick = ()=>downloadText('Listado_Junta_Directiva.txt', genListadoJunta());
     row3.appendChild(dl3);
-    row3.appendChild(wordBtn(null, 'Listado_Junta_Directiva.doc', 'Lista de la Junta Directiva', genListadoJunta));
+    row3.appendChild(wordBtnDocx(null, 'Listado_Junta_Directiva.docx', genListadoJuntaDocxChildren));
     juntaCard.appendChild(row3);
     main.appendChild(juntaCard);
 
@@ -977,7 +1178,7 @@ const RENDERERS = {
     const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
     dl.onclick = ()=>downloadText('Nota_de_solicitud.txt', genNota());
     prevCard.appendChild(dl);
-    prevCard.appendChild(wordBtn(null, 'Nota_de_solicitud.doc', 'Nota de solicitud', genNota));
+    prevCard.appendChild(wordBtn(null, 'Nota_de_solicitud.docx', 'Nota de solicitud', genNota));
     main.appendChild(prevCard);
 
     navButtons(main);
@@ -1020,23 +1221,23 @@ const RENDERERS = {
     const docsCard = document.createElement('div'); docsCard.className='card';
     docsCard.innerHTML = '<h3>Descargar todos los documentos</h3>';
     const docs = [
-      ['Nota de solicitud', genNota, 'Nota_de_solicitud.txt'],
-      ['Acta de Constitución', genActaConstitucion, 'Acta_de_Constitucion.txt'],
-      ['Lista de asistencia — constitución', ()=>genListadoAsistencia('Formación de un grupo'), 'Listado_asistencia_constitucion.txt'],
-      ['Lista de la Junta Directiva', genListadoJunta, 'Listado_Junta_Directiva.txt'],
-      ['Estatuto', genEstatuto, 'Estatuto.txt'],
-      ['Plan de Trabajo', genPlanTrabajo, 'Plan_de_Trabajo.txt'],
-      ['Acta de aprobación de Estatuto y Plan', genActaAprobacion, 'Acta_aprobacion_estatuto_plan.txt'],
-      ['Lista de asistencia — aprobación', ()=>genListadoAsistencia('Aprobación de Estatuto y Plan de Trabajo'), 'Listado_asistencia_aprobacion.txt'],
+      ['Nota de solicitud', genNota, 'Nota_de_solicitud.txt', null],
+      ['Acta de Constitución', genActaConstitucion, 'Acta_de_Constitucion.txt', genActaConstitucionDocxChildren],
+      ['Lista de asistencia — constitución', ()=>genListadoAsistencia('Formación de un grupo'), 'Listado_asistencia_constitucion.txt', ()=>genListadoAsistenciaDocxChildren('Formación de un grupo')],
+      ['Lista de la Junta Directiva', genListadoJunta, 'Listado_Junta_Directiva.txt', genListadoJuntaDocxChildren],
+      ['Estatuto', genEstatuto, 'Estatuto.txt', null],
+      ['Plan de Trabajo', genPlanTrabajo, 'Plan_de_Trabajo.txt', null],
+      ['Acta de aprobación de Estatuto y Plan', genActaAprobacion, 'Acta_aprobacion_estatuto_plan.txt', null],
+      ['Lista de asistencia — aprobación', ()=>genListadoAsistencia('Aprobación de Estatuto y Plan de Trabajo'), 'Listado_asistencia_aprobacion.txt', ()=>genListadoAsistenciaDocxChildren('Aprobación de Estatuto y Plan de Trabajo')],
     ];
     const summaryGrid = document.createElement('div'); summaryGrid.className='summary-grid';
-    docs.forEach(([label, gen, filename])=>{
+    docs.forEach(([label, gen, filename, docxGen])=>{
       const box = document.createElement('div'); box.className='summary-doc';
-      box.innerHTML = `<h4>${label}</h4><div class="meta">${filename}</div>`;
+      box.innerHTML = `<h4>${label}</h4><div class="meta">${filename.replace('.txt','.docx')}</div>`;
       const row = document.createElement('div'); row.className='row-actions';
       const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='.txt';
       dl.onclick = ()=>downloadText(filename, gen());
-      const wd = wordBtn('Word (.doc)', filename, label, gen);
+      const wd = docxGen ? wordBtnDocx('Word (.docx)', filename, docxGen) : wordBtn('Word (.docx)', filename, label, gen);
       const cp = document.createElement('button'); cp.className='btn ghost sm'; cp.textContent='Copiar';
       cp.onclick = ()=>copyText(gen());
       row.appendChild(dl); row.appendChild(wd); row.appendChild(cp);
@@ -1052,17 +1253,16 @@ const RENDERERS = {
       const full = docs.map(([label,gen])=>`${'='.repeat(70)}\n${label.toUpperCase()}\n${'='.repeat(70)}\n\n${gen()}\n\n`).join('\n');
       downloadText(`Expediente_OBC_${nombreBase}.txt`, full);
     };
-    const allWordBtn = document.createElement('button'); allWordBtn.className='btn'; allWordBtn.textContent='Descargar expediente completo en Word (.doc)';
-    allWordBtn.onclick = ()=>{
-      const bodyHtml = docs.map(([label,gen], i)=>{
-        const pageBreak = i===0 ? '' : `style="page-break-before:always;"`;
-        return `<div ${pageBreak}>${textToWordBody(`${label.toUpperCase()}\n\n${gen()}`)}</div>`;
-      }).join('\n');
-      const html = buildWordDoc(`Expediente OBC — ${data.org.nombre||''}`, bodyHtml, true);
-      const blob = new Blob(['\ufeff', html], {type:'application/msword'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href=url; a.download = `Expediente_OBC_${nombreBase}.doc`; a.click();
-      URL.revokeObjectURL(url);
+    const allWordBtn = document.createElement('button'); allWordBtn.className='btn'; allWordBtn.textContent='Descargar expediente completo en Word (.docx)';
+    allWordBtn.onclick = async ()=>{
+      await waitForDocxLib();
+      const { Paragraph, TextRun, AlignmentType } = docx;
+      let children = [];
+      docs.forEach(([label,gen,filename,docxGen], i)=>{
+        children.push(new Paragraph({ pageBreakBefore: i>0, alignment:AlignmentType.CENTER, spacing:{after:220}, children:[new TextRun({text:label.toUpperCase(), bold:true, size:30})] }));
+        children = children.concat(docxGen ? docxGen() : textToDocxParagraphs(gen()));
+      });
+      await buildAndDownloadDocx(`Expediente_OBC_${nombreBase}.docx`, children);
     };
     actionsFinal.appendChild(allWordBtn); actionsFinal.appendChild(allBtn);
     docsCard.appendChild(actionsFinal);
