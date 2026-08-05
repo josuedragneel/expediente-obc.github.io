@@ -202,7 +202,7 @@ const STEPS = [
 let data = {
   org: baymetOrgDefaults(),
   fundadores:[ blankFundador(), blankFundador(), blankFundador() ],
-  junta:{ presidenteIdx:0, secretarioIdx:1, tesoreroIdx:2, periodoAnios:'3' },
+  junta:{ presidenteIdx:0, vicepresidenteIdx:null, secretarioIdx:1, tesoreroIdx:2, fiscalIdx:null, vocalIdxs:[], periodoAnios:'3' },
   constitucion:{ fecha:'', hora:'', presAdhocIdx:0, secAdhocIdx:1, nombreElegido:'' },
   estatuto: baymetEstatutoDefaults(),
   plan:{ periodo:'', actividades:[ blankActividad() ] },
@@ -210,7 +210,7 @@ let data = {
   solicitud:{ fecha:'', direccionRegional:'', funcionario:'' },
 };
 
-function blankFundador(){ return { nombre:'', cedula:'', direccion:'', telefono:'', genero:'' }; }
+function blankFundador(){ return { nombre:'', cedula:'', direccion:'', telefono:'', genero:'', cargo:'' }; }
 function blankActividad(){ return { actividad:'', objetivo:'', fecha:'', responsable:'' }; }
 
 function baymetOrgDefaults(){
@@ -325,11 +325,12 @@ function mergeFundadoresFromServerRows(rows){
     let targetIdx = data.fundadores.findIndex(f => f._serverId === row.id);
     if(targetIdx === -1) targetIdx = data.fundadores.findIndex(f => !f.nombre && !f.cedula && f._serverId == null);
     if(targetIdx === -1){ data.fundadores.push(blankFundador()); targetIdx = data.fundadores.length - 1; }
-    data.fundadores[targetIdx] = { nombre: row.nombre||'', cedula: row.cedula||'', direccion: row.direccion||'', telefono: row.telefono||'', genero: row.genero||'', _serverId: row.id };
+    data.fundadores[targetIdx] = { nombre: row.nombre||'', cedula: row.cedula||'', direccion: row.direccion||'', telefono: row.telefono||'', genero: row.genero||'', cargo: row.cargo||'', _serverId: row.id };
     if(row.firma) media.firmas[targetIdx] = row.firma;
     if(row.cedula_foto) media.cedulas[targetIdx] = row.cedula_foto;
     count++;
   });
+  recalcularJuntaDesdeCargos();
   return count;
 }
 function timeHHMM(t){ return t ? String(t).slice(0,5) : ''; }
@@ -343,7 +344,17 @@ function syncExpedienteToServer(){
       const o = data.org, j = data.junta, c = data.constitucion, e = data.estatuto, p = data.plan, a = data.aprobacion, s = data.solicitud;
       const payload = {
         organizacion: { nombre:o.nombre, siglas:o.siglas, provincia:o.provincia, distrito:o.distrito, corregimiento:o.corregimiento, comunidad:o.comunidad, direccion:o.direccion, ambito:o.ambito, objetivos:o.objetivos, fines:o.fines, actividades:o.actividades },
-        junta: { presidente_id: localIdxToServerId(j.presidenteIdx), secretario_id: localIdxToServerId(j.secretarioIdx), tesorero_id: localIdxToServerId(j.tesoreroIdx), periodo_anios: j.periodoAnios },
+        junta: {
+          presidente_id: localIdxToServerId(j.presidenteIdx),
+          vicepresidente_id: j.vicepresidenteIdx==null ? null : localIdxToServerId(j.vicepresidenteIdx),
+          secretario_id: localIdxToServerId(j.secretarioIdx),
+          tesorero_id: localIdxToServerId(j.tesoreroIdx),
+          fiscal_id: j.fiscalIdx==null ? null : localIdxToServerId(j.fiscalIdx),
+          vocal1_id: (j.vocalIdxs&&j.vocalIdxs[0]!=null) ? localIdxToServerId(j.vocalIdxs[0]) : null,
+          vocal2_id: (j.vocalIdxs&&j.vocalIdxs[1]!=null) ? localIdxToServerId(j.vocalIdxs[1]) : null,
+          vocal3_id: (j.vocalIdxs&&j.vocalIdxs[2]!=null) ? localIdxToServerId(j.vocalIdxs[2]) : null,
+          periodo_anios: j.periodoAnios,
+        },
         constitucion: { fecha: c.fecha || null, hora: c.hora || null, presidente_adhoc_id: localIdxToServerId(c.presAdhocIdx), secretario_adhoc_id: localIdxToServerId(c.secAdhocIdx), nombre_elegido: c.nombreElegido || '' },
         estatuto: { modalidad:e.modalidad, derechos:e.derechos, deberes:e.deberes, convocatoria:e.convocatoria, periodo_junta:e.periodoJunta, reeleccion:e.reeleccion, modificacion:e.modificacion, patrimonio:e.patrimonio, disolucion:e.disolucion, destino_bienes:e.destinoBienes },
         plan: { periodo: p.periodo, actividades: p.actividades.map(x=>({actividad:x.actividad, objetivo:x.objetivo, fecha:x.fecha, responsable:x.responsable})) },
@@ -371,7 +382,18 @@ async function cargarExpedienteDelServidor(){
     if(json.plan){ data.plan = { periodo: json.plan.periodo || '', actividades: (json.plan.actividades && json.plan.actividades.length) ? json.plan.actividades.map(x=>({actividad:x.actividad||'', objetivo:x.objetivo||'', fecha:x.fecha||'', responsable:x.responsable||''})) : [blankActividad()] }; }
     if(json.aprobacion){ const r=json.aprobacion; Object.assign(data.aprobacion, { fecha:r.fecha||'', hora: timeHHMM(r.hora) }); }
     if(json.solicitud){ const r=json.solicitud; Object.assign(data.solicitud, { fecha:r.fecha||'', direccionRegional:r.direccion_regional||'', funcionario:r.funcionario||'' }); }
-    if(json.junta){ const r=json.junta; Object.assign(data.junta, { presidenteIdx: serverIdToLocalIdx(r.presidente_id), secretarioIdx: serverIdToLocalIdx(r.secretario_id), tesoreroIdx: serverIdToLocalIdx(r.tesorero_id), periodoAnios: r.periodo_anios||'' }); }
+    if(json.junta){
+      const r=json.junta;
+      Object.assign(data.junta, {
+        presidenteIdx: serverIdToLocalIdx(r.presidente_id),
+        vicepresidenteIdx: r.vicepresidente_id==null ? null : serverIdToLocalIdx(r.vicepresidente_id),
+        secretarioIdx: serverIdToLocalIdx(r.secretario_id),
+        tesoreroIdx: serverIdToLocalIdx(r.tesorero_id),
+        fiscalIdx: r.fiscal_id==null ? null : serverIdToLocalIdx(r.fiscal_id),
+        vocalIdxs: [r.vocal1_id, r.vocal2_id, r.vocal3_id].filter(x=>x!=null).map(serverIdToLocalIdx),
+        periodoAnios: r.periodo_anios||'',
+      });
+    }
     if(json.constitucion){ const r=json.constitucion; Object.assign(data.constitucion, { fecha:r.fecha||'', hora: timeHHMM(r.hora), presAdhocIdx: serverIdToLocalIdx(r.presidente_adhoc_id), secAdhocIdx: serverIdToLocalIdx(r.secretario_adhoc_id), nombreElegido:r.nombre_elegido||'' }); }
 
     saveData(); saveMedia();
@@ -475,6 +497,32 @@ function selectField(labelTxt, value, options, onChange){
   return wrap;
 }
 function refreshStepperOnly(){ renderStepper(); }
+
+/* ===== Junta Directiva a partir del cargo que cada fundador marca en su propia tarjeta ===== */
+const CARGOS_UNICOS = ['presidente','vicepresidente','secretario','tesorero','fiscal'];
+function cargosDuplicados(){
+  const conteo = {};
+  CARGOS_UNICOS.forEach(c=>conteo[c]=[]);
+  data.fundadores.forEach((f,i)=>{ if(f.cargo && CARGOS_UNICOS.includes(f.cargo)) conteo[f.cargo].push(i); });
+  const dup = {};
+  Object.keys(conteo).forEach(c=>{ if(conteo[c].length > 1) dup[c] = conteo[c]; });
+  const vocales = data.fundadores.map((f,i)=>f.cargo==='vocal'?i:null).filter(i=>i!==null);
+  if(vocales.length > 3) dup['vocal'] = vocales;
+  return dup;
+}
+function recalcularJuntaDesdeCargos(){
+  const dup = cargosDuplicados();
+  const primero = (cargo)=>{ const idx = data.fundadores.findIndex(f=>f.cargo===cargo); return idx; };
+  if(!dup.presidente){ const i = primero('presidente'); if(i !== -1) data.junta.presidenteIdx = i; }
+  if(!dup.vicepresidente){ const i = primero('vicepresidente'); if(i !== -1) data.junta.vicepresidenteIdx = i; }
+  if(!dup.secretario){ const i = primero('secretario'); if(i !== -1) data.junta.secretarioIdx = i; }
+  if(!dup.tesorero){ const i = primero('tesorero'); if(i !== -1) data.junta.tesoreroIdx = i; }
+  if(!dup.fiscal){ const i = primero('fiscal'); if(i !== -1) data.junta.fiscalIdx = i; }
+  if(!dup.vocal){
+    const vocales = data.fundadores.map((f,i)=>f.cargo==='vocal'?i:null).filter(i=>i!==null);
+    if(vocales.length) data.junta.vocalIdxs = vocales.slice(0,3);
+  }
+}
 
 /* ===== Firma digital (canvas) y foto de cédula ===== */
 function signaturePadWidget(idx){
@@ -693,6 +741,18 @@ function fmtFecha(iso){
 }
 function nombreFundador(i){ const f=data.fundadores[i]; return f ? (f.nombre || `(fundador ${i+1} sin nombre)`) : '_____________'; }
 function cedulaFundador(i){ const f=data.fundadores[i]; return f ? (f.cedula || '_____________') : '_____________'; }
+function juntaCargosAsignados(){
+  const j = data.junta;
+  const roles = [
+    ['Presidente(a)', j.presidenteIdx],
+    ['Vicepresidente(a)', j.vicepresidenteIdx],
+    ['Secretario(a)', j.secretarioIdx],
+    ['Tesorero(a)', j.tesoreroIdx],
+    ['Fiscal', j.fiscalIdx],
+  ].filter(([_, idx]) => idx !== null && idx !== undefined);
+  (j.vocalIdxs||[]).forEach((idx, i)=>{ if(idx!=null && idx!==undefined) roles.push([`Vocal ${i+1}`, idx]); });
+  return roles;
+}
 
 function genNota(){
   const s = data.solicitud, o = data.org;
@@ -752,9 +812,7 @@ Se procedió seguidamente a la elección de la Junta Directiva de la OBC para el
 
 La Junta Directiva de la agrupación quedó constituida de la siguiente manera:
 
-  Presidente(a):  ${nombreFundador(data.junta.presidenteIdx)}  (cédula ${cedulaFundador(data.junta.presidenteIdx)})
-  Secretario(a):  ${nombreFundador(data.junta.secretarioIdx)}  (cédula ${cedulaFundador(data.junta.secretarioIdx)})
-  Tesorero(a):    ${nombreFundador(data.junta.tesoreroIdx)}  (cédula ${cedulaFundador(data.junta.tesoreroIdx)})
+${juntaCargosAsignados().map(([cargo,idx])=>`  ${cargo.padEnd(18)} ${nombreFundador(idx)}  (cédula ${cedulaFundador(idx)})`).join('\n')}
 
 Presentes los elegidos, aceptaron los cargos y se les tomó el juramento de rigor, quedando legalmente posesionados.
 
@@ -903,16 +961,14 @@ function genListadoJunta(){
   const o = data.org, f = data.fundadores, j = data.junta;
   const filaJunta = (cargo, idx)=>{
     const m = f[idx] || blankFundador();
-    return `${cargo.padEnd(13)} ${(m.nombre||'—').padEnd(26)} ${(m.cedula||'—').padEnd(16)} ${(m.direccion||'—').padEnd(24)} ${(m.telefono||'—')}`;
+    return `${cargo.padEnd(18)} ${(m.nombre||'—').padEnd(26)} ${(m.cedula||'—').padEnd(16)} ${(m.direccion||'—').padEnd(24)} ${(m.telefono||'—')}`;
   };
   return `DIRECCIÓN DE LOS MIEMBROS DE LA JUNTA DIRECTIVA
 Comunidad de: ${o.comunidad||'____________'}, corregimiento de: ${o.corregimiento||'____________'}, distrito de: ${o.distrito||'____________'}.
 
-CARGO         NOMBRE                     CÉDULA           DIRECCIÓN                TELÉFONO
+CARGO              NOMBRE                     CÉDULA           DIRECCIÓN                TELÉFONO
 ${'-'.repeat(95)}
-${filaJunta('Presidente(a)', j.presidenteIdx)}
-${filaJunta('Secretario(a)', j.secretarioIdx)}
-${filaJunta('Tesorero(a)', j.tesoreroIdx)}
+${juntaCargosAsignados().map(([cargo,idx])=>filaJunta(cargo, idx)).join('\n')}
 
 Nota: adjuntar copia de cédula (o carnet de residente) de cada miembro de la Junta Directiva, conforme al Artículo 11, numeral 5, del Decreto Ejecutivo N.º 32 de 2017.`;
 }
@@ -951,18 +1007,21 @@ function genActaConstitucionDocxChildren(){
 function genListadoJuntaDocxChildren(){
   const { Paragraph, TableRow, TableCell, TextRun, WidthType, AlignmentType } = docx;
   const children = textToDocxParagraphs(genListadoJunta());
-  const j = data.junta;
-  const cargos = [['Presidente(a)', j.presidenteIdx], ['Secretario(a)', j.secretarioIdx], ['Tesorero(a)', j.tesoreroIdx]];
+  const cargos = juntaCargosAsignados();
   children.push(new Paragraph({ spacing:{before:220, after:160}, children:[new TextRun({text:'ANEXO — COPIAS DE CÉDULA DE LA JUNTA DIRECTIVA', bold:true})] }));
-  const cells = cargos.map(([cargo, idx])=> new TableCell({
+  const celda = ([cargo, idx])=> new TableCell({
     width:{size:33, type:WidthType.PERCENTAGE},
     children:[
       new Paragraph({alignment:AlignmentType.CENTER, children:[new TextRun({text:cargo, bold:true})]}),
       new Paragraph({alignment:AlignmentType.CENTER, spacing:{after:100}, children:[new TextRun({text: nombreFundador(idx)})]}),
       docxImageParagraph(media.cedulas[idx], 170, 110, '(sin foto de cédula adjunta)'),
     ]
-  }));
-  children.push(noBordersTable([ new TableRow({ children: cells }) ]));
+  });
+  const filas = [];
+  for(let i=0; i<cargos.length; i+=3){
+    filas.push(new TableRow({ children: cargos.slice(i, i+3).map(celda) }));
+  }
+  if(filas.length) children.push(noBordersTable(filas));
   return children;
 }
 function genListadoAsistenciaDocxChildren(titulo){
@@ -1119,14 +1178,14 @@ const RENDERERS = {
           if(targetIdx === -1){ data.fundadores.push(blankFundador()); targetIdx = data.fundadores.length - 1; }
           data.fundadores[targetIdx] = {
             nombre: obj.nombre || '', cedula: obj.cedula || '', direccion: obj.direccion || '',
-            telefono: obj.telefono || '', genero: obj.genero || '',
+            telefono: obj.telefono || '', genero: obj.genero || '', cargo: obj.cargo || '',
           };
           if(obj.firma) media.firmas[targetIdx] = obj.firma;
           if(obj.cedulaFoto) media.cedulas[targetIdx] = obj.cedulaFoto;
           count++;
         }catch(e){ /* archivo inválido, se ignora */ }
       }
-      if(count){ saveData(); saveMedia(); renderAll(); showToast(`${count} fundador(es) importado(s)`); }
+      if(count){ recalcularJuntaDesdeCargos(); saveData(); saveMedia(); renderAll(); showToast(`${count} fundador(es) importado(s)`); }
       else{ showToast('No se pudo leer el archivo'); }
       importInput.value = '';
     });
@@ -1143,7 +1202,7 @@ const RENDERERS = {
       const item = document.createElement('div'); item.className='repeat-item';
       if(data.fundadores.length>3){
         const rm = document.createElement('button'); rm.className='btn danger sm remove'; rm.textContent='Quitar';
-        rm.onclick = ()=>{ data.fundadores.splice(i,1); saveData(); renderAll(); };
+        rm.onclick = ()=>{ data.fundadores.splice(i,1); recalcularJuntaDesdeCargos(); saveData(); renderAll(); };
         item.appendChild(rm);
       }
       const grid = document.createElement('div'); grid.className='grid cols-2';
@@ -1155,6 +1214,22 @@ const RENDERERS = {
       item.appendChild(selectField('Sexo (para el conteo del Acta de Constitución)', f.genero, [
         {value:'', label:'Seleccionar…'}, {value:'F', label:'Mujer'}, {value:'M', label:'Hombre'}
       ], v=>f.genero=v));
+      item.appendChild(selectField('¿Qué cargo tiene usted en la Junta Directiva?', f.cargo, [
+        {value:'', label:'Fundador(a) — sin cargo directivo'},
+        {value:'presidente', label:'Presidente(a)'},
+        {value:'vicepresidente', label:'Vicepresidente(a)'},
+        {value:'secretario', label:'Secretario(a)'},
+        {value:'tesorero', label:'Tesorero(a)'},
+        {value:'fiscal', label:'Fiscal'},
+        {value:'vocal', label:'Vocal'},
+      ], v=>{ f.cargo=v; recalcularJuntaDesdeCargos(); }));
+      const dup = cargosDuplicados();
+      const miDup = f.cargo && dup[f.cargo];
+      if(miDup){
+        const w = document.createElement('div'); w.className='banner warn'; w.style.margin='0 0 10px';
+        w.textContent = `Ojo: ${dup[f.cargo].length} personas marcaron "${f.cargo}" — hay que ponerse de acuerdo, porque no puede repetirse. Mientras tanto, ese cargo no se va a asignar solo.`;
+        item.appendChild(w);
+      }
       const mediaGrid = document.createElement('div'); mediaGrid.className='grid cols-2'; mediaGrid.style.marginTop='10px';
       mediaGrid.appendChild(signaturePadWidget(i));
       mediaGrid.appendChild(cedulaPhotoWidget(i));
@@ -1162,7 +1237,7 @@ const RENDERERS = {
       const exportBtn = document.createElement('button'); exportBtn.className='btn ghost sm'; exportBtn.style.marginTop='10px'; exportBtn.textContent='📤 Descargar mis datos (para enviar)';
       exportBtn.onclick = ()=>{
         const payload = {
-          nombre: f.nombre||'', cedula: f.cedula||'', direccion: f.direccion||'', telefono: f.telefono||'', genero: f.genero||'',
+          nombre: f.nombre||'', cedula: f.cedula||'', direccion: f.direccion||'', telefono: f.telefono||'', genero: f.genero||'', cargo: f.cargo||'',
           firma: media.firmas[i] || null, cedulaFoto: media.cedulas[i] || null,
         };
         const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
@@ -1179,7 +1254,7 @@ const RENDERERS = {
         try{
           const payload = {
             id: f._serverId || null,
-            nombre: f.nombre||'', cedula: f.cedula||'', direccion: f.direccion||'', telefono: f.telefono||'', genero: f.genero||'',
+            nombre: f.nombre||'', cedula: f.cedula||'', direccion: f.direccion||'', telefono: f.telefono||'', genero: f.genero||'', cargo: f.cargo||'',
             firma: media.firmas[i] || null, cedulaFoto: media.cedulas[i] || null,
           };
           const res = await apiFetch(url.replace(/\/$/,'') + '/guardar_fundador.php', {
@@ -1203,16 +1278,38 @@ const RENDERERS = {
   },
 
   junta(main){
-    docHead(main, 'Paso 3 · Art. 7', 'Junta Directiva', 'Selecciona, entre los fundadores, quién ocupará cada cargo. Como mínimo: Presidente(a), Secretario(a) y Tesorero(a).');
+    docHead(main, 'Paso 3 · Art. 7', 'Junta Directiva', 'Se arma sola con el cargo que cada fundador(a) marcó en su propia tarjeta (paso anterior). Si nadie marcó un cargo todavía, o hay que corregir algo, puedes elegirlo aquí a mano.');
     const card = document.createElement('div'); card.className='card';
+    const dup = cargosDuplicados();
+    if(Object.keys(dup).length){
+      const b = document.createElement('div'); b.className='banner warn';
+      b.textContent = 'Hay cargos marcados por más de una persona: ' + Object.entries(dup).map(([c,idxs])=>`${c} (${idxs.map(i=>data.fundadores[i].nombre||`fundador ${i+1}`).join(', ')})`).join('; ') + '. Corrígelo en el paso anterior — mientras tanto, esos cargos no se asignan solos y hay que elegirlos a mano abajo.';
+      card.appendChild(b);
+    } else {
+      const info = document.createElement('div'); info.className='banner';
+      info.textContent = 'Los combos de abajo ya reflejan lo que cada quien marcó en su tarjeta. Solo tienes que revisarlos y corregir a mano si hace falta.';
+      card.appendChild(info);
+    }
     const opts = data.fundadores.map((f,i)=>({value:String(i), label: f.nombre || `Fundador(a) ${i+1}`}));
+    const optsConNinguno = [{value:'', label:'— Ninguno —'}, ...opts];
     const j = data.junta;
     card.appendChild(selectField('Presidente(a)', String(j.presidenteIdx), opts, v=>j.presidenteIdx=Number(v)));
+    card.appendChild(selectField('Vicepresidente(a)', j.vicepresidenteIdx==null?'':String(j.vicepresidenteIdx), optsConNinguno, v=>j.vicepresidenteIdx = v===''?null:Number(v)));
     card.appendChild(selectField('Secretario(a)', String(j.secretarioIdx), opts, v=>j.secretarioIdx=Number(v)));
     card.appendChild(selectField('Tesorero(a)', String(j.tesoreroIdx), opts, v=>j.tesoreroIdx=Number(v)));
+    card.appendChild(selectField('Fiscal', j.fiscalIdx==null?'':String(j.fiscalIdx), optsConNinguno, v=>j.fiscalIdx = v===''?null:Number(v)));
+    if(!Array.isArray(j.vocalIdxs)) j.vocalIdxs = [];
+    [0,1,2].forEach(pos=>{
+      card.appendChild(selectField(`Vocal ${pos+1}`, j.vocalIdxs[pos]==null?'':String(j.vocalIdxs[pos]), optsConNinguno, v=>{
+        j.vocalIdxs[pos] = v===''?null:Number(v);
+        j.vocalIdxs = j.vocalIdxs.filter(x=>x!=null);
+      }));
+    });
     card.appendChild(field('Periodo de la Junta Directiva (años)', j.periodoAnios, v=>j.periodoAnios=v, {type:'number'}));
-    if(j.presidenteIdx===j.secretarioIdx || j.secretarioIdx===j.tesoreroIdx || j.presidenteIdx===j.tesoreroIdx){
-      const b = document.createElement('div'); b.className='banner warn'; b.textContent = 'Cada cargo debe recaer en una persona distinta.';
+    const asignados = [j.presidenteIdx, j.vicepresidenteIdx, j.secretarioIdx, j.tesoreroIdx, j.fiscalIdx, ...j.vocalIdxs].filter(x=>x!=null && x!==undefined);
+    const repetidos = asignados.some((x,i)=>asignados.indexOf(x)!==i);
+    if(repetidos){
+      const b = document.createElement('div'); b.className='banner warn'; b.textContent = 'Una misma persona no debería ocupar dos cargos a la vez — revisa los combos de arriba.';
       card.appendChild(b);
     }
     main.appendChild(card);
