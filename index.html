@@ -254,36 +254,137 @@ function cargarDatosBaymet(){
 let currentStep = 0;
 let media = { firmas:{}, cedulas:{} }; // media.firmas[idx] / media.cedulas[idx] = dataURL (base64)
 
+// ============================================================
+// URL del servidor (XAMPP). SOLO tú la editas aquí, en el código,
+// antes de subir la página a GitHub. No aparece ni se puede cambiar
+// desde la página — así nadie más la ve ni la toca.
+// Ejemplo: 'http://192.168.1.20/obc-api'
+// Déjala vacía ('') para que la app funcione solo con archivos .json,
+// sin servidor.
+// ============================================================
+const OBC_API_URL = 'https://stroller-treadmill-zoning.ngrok-free.dev/obc-api';
+
+function getApiUrl(){ return OBC_API_URL; }
+// Pequeño envoltorio sobre fetch: agrega el header que hace falta para que
+// ngrok (si lo usas para exponer XAMPP a internet) no muestre su pantalla
+// de advertencia y bloquee las peticiones automáticas de la página.
+function apiFetch(url, opts){
+  opts = opts || {};
+  opts.headers = Object.assign({ 'ngrok-skip-browser-warning': 'true' }, opts.headers || {});
+  return fetch(url, opts);
+}
 /* ============ PERSISTENCIA ============ */
+async function storageGet(key){
+  if(window.storage && typeof window.storage.get === 'function'){
+    try{ const res = await window.storage.get(key, false); if(res && res.value != null) return res.value; }
+    catch(e){ /* seguimos con localStorage */ }
+  }
+  try{ return localStorage.getItem(key); }catch(e){ return null; }
+}
+async function storageSet(key, value){
+  if(window.storage && typeof window.storage.set === 'function'){
+    try{ await window.storage.set(key, value, false); return true; }
+    catch(e){ /* seguimos con localStorage */ }
+  }
+  try{ localStorage.setItem(key, value); return true; }catch(e){ return false; }
+}
 async function loadData(){
   try{
-    const res = await window.storage.get('obc-expediente', false);
-    if(res && res.value){
-      const saved = JSON.parse(res.value);
-      data = Object.assign(data, saved);
-    }
+    const val = await storageGet('obc-expediente');
+    if(val){ data = Object.assign(data, JSON.parse(val)); }
   }catch(e){ /* no hay datos guardados aún */ }
   try{
-    const resMedia = await window.storage.get('obc-media', false);
-    if(resMedia && resMedia.value){
-      media = Object.assign(media, JSON.parse(resMedia.value));
-    }
+    const valMedia = await storageGet('obc-media');
+    if(valMedia){ media = Object.assign(media, JSON.parse(valMedia)); }
   }catch(e){ /* no hay medios guardados aún */ }
 }
 let saveTimer=null;
 function saveData(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
-    try{ await window.storage.set('obc-expediente', JSON.stringify(data), false); }
-    catch(e){ console.error('No se pudo guardar', e); }
+    const ok = await storageSet('obc-expediente', JSON.stringify(data));
+    if(!ok) console.error('No se pudo guardar');
+    syncExpedienteToServer();
   }, 350);
+}
+let serverSyncTimer=null;
+
+/* ---- Traducción entre el modelo de la app y las tablas relacionales ---- */
+function localIdxToServerId(idx){
+  const f = data.fundadores[idx];
+  return (f && f._serverId) ? f._serverId : null;
+}
+function serverIdToLocalIdx(id){
+  if(id === null || id === undefined) return 0;
+  const idx = data.fundadores.findIndex(f => f._serverId === id);
+  return idx === -1 ? 0 : idx;
+}
+function mergeFundadoresFromServerRows(rows){
+  let count = 0;
+  (rows || []).forEach(row=>{
+    let targetIdx = data.fundadores.findIndex(f => f._serverId === row.id);
+    if(targetIdx === -1) targetIdx = data.fundadores.findIndex(f => !f.nombre && !f.cedula && f._serverId == null);
+    if(targetIdx === -1){ data.fundadores.push(blankFundador()); targetIdx = data.fundadores.length - 1; }
+    data.fundadores[targetIdx] = { nombre: row.nombre||'', cedula: row.cedula||'', direccion: row.direccion||'', telefono: row.telefono||'', genero: row.genero||'', _serverId: row.id };
+    if(row.firma) media.firmas[targetIdx] = row.firma;
+    if(row.cedula_foto) media.cedulas[targetIdx] = row.cedula_foto;
+    count++;
+  });
+  return count;
+}
+function timeHHMM(t){ return t ? String(t).slice(0,5) : ''; }
+
+function syncExpedienteToServer(){
+  const url = getApiUrl();
+  if(!url) return;
+  clearTimeout(serverSyncTimer);
+  serverSyncTimer = setTimeout(async ()=>{
+    try{
+      const o = data.org, j = data.junta, c = data.constitucion, e = data.estatuto, p = data.plan, a = data.aprobacion, s = data.solicitud;
+      const payload = {
+        organizacion: { nombre:o.nombre, siglas:o.siglas, provincia:o.provincia, distrito:o.distrito, corregimiento:o.corregimiento, comunidad:o.comunidad, direccion:o.direccion, ambito:o.ambito, objetivos:o.objetivos, fines:o.fines, actividades:o.actividades },
+        junta: { presidente_id: localIdxToServerId(j.presidenteIdx), secretario_id: localIdxToServerId(j.secretarioIdx), tesorero_id: localIdxToServerId(j.tesoreroIdx), periodo_anios: j.periodoAnios },
+        constitucion: { fecha: c.fecha || null, hora: c.hora || null, presidente_adhoc_id: localIdxToServerId(c.presAdhocIdx), secretario_adhoc_id: localIdxToServerId(c.secAdhocIdx), nombre_elegido: c.nombreElegido || '' },
+        estatuto: { modalidad:e.modalidad, derechos:e.derechos, deberes:e.deberes, convocatoria:e.convocatoria, periodo_junta:e.periodoJunta, reeleccion:e.reeleccion, modificacion:e.modificacion, patrimonio:e.patrimonio, disolucion:e.disolucion, destino_bienes:e.destinoBienes },
+        plan: { periodo: p.periodo, actividades: p.actividades.map(x=>({actividad:x.actividad, objetivo:x.objetivo, fecha:x.fecha, responsable:x.responsable})) },
+        aprobacion: { fecha: a.fecha || null, hora: a.hora || null },
+        solicitud: { fecha: s.fecha || null, direccion_regional: s.direccionRegional, funcionario: s.funcionario },
+      };
+      await apiFetch(url.replace(/\/$/,'') + '/guardar_expediente.php', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+      });
+    }catch(e){ /* sin conexión al servidor por ahora, no pasa nada — sigue guardado localmente */ }
+  }, 500);
+}
+async function cargarExpedienteDelServidor(){
+  const url = getApiUrl();
+  if(!url) return false;
+  try{
+    const res = await apiFetch(url.replace(/\/$/,'') + '/cargar_expediente.php');
+    const json = await res.json();
+    if(!json.ok) return false;
+
+    mergeFundadoresFromServerRows(json.fundadores); // primero, para tener los índices locales listos
+
+    if(json.organizacion){ const r=json.organizacion; Object.assign(data.org, { nombre:r.nombre||'', siglas:r.siglas||'', provincia:r.provincia||'', distrito:r.distrito||'', corregimiento:r.corregimiento||'', comunidad:r.comunidad||'', direccion:r.direccion||'', ambito:r.ambito||'', objetivos:r.objetivos||'', fines:r.fines||'', actividades:r.actividades||'' }); }
+    if(json.estatuto){ const r=json.estatuto; Object.assign(data.estatuto, { modalidad:r.modalidad||'', derechos:r.derechos||'', deberes:r.deberes||'', convocatoria:r.convocatoria||'', periodoJunta:r.periodo_junta||'', reeleccion:r.reeleccion||'', modificacion:r.modificacion||'', patrimonio:r.patrimonio||'', disolucion:r.disolucion||'', destinoBienes:r.destino_bienes||'' }); }
+    if(json.plan){ data.plan = { periodo: json.plan.periodo || '', actividades: (json.plan.actividades && json.plan.actividades.length) ? json.plan.actividades.map(x=>({actividad:x.actividad||'', objetivo:x.objetivo||'', fecha:x.fecha||'', responsable:x.responsable||''})) : [blankActividad()] }; }
+    if(json.aprobacion){ const r=json.aprobacion; Object.assign(data.aprobacion, { fecha:r.fecha||'', hora: timeHHMM(r.hora) }); }
+    if(json.solicitud){ const r=json.solicitud; Object.assign(data.solicitud, { fecha:r.fecha||'', direccionRegional:r.direccion_regional||'', funcionario:r.funcionario||'' }); }
+    if(json.junta){ const r=json.junta; Object.assign(data.junta, { presidenteIdx: serverIdToLocalIdx(r.presidente_id), secretarioIdx: serverIdToLocalIdx(r.secretario_id), tesoreroIdx: serverIdToLocalIdx(r.tesorero_id), periodoAnios: r.periodo_anios||'' }); }
+    if(json.constitucion){ const r=json.constitucion; Object.assign(data.constitucion, { fecha:r.fecha||'', hora: timeHHMM(r.hora), presAdhocIdx: serverIdToLocalIdx(r.presidente_adhoc_id), secAdhocIdx: serverIdToLocalIdx(r.secretario_adhoc_id), nombreElegido:r.nombre_elegido||'' }); }
+
+    saveData(); saveMedia();
+    return true;
+  }catch(e){ /* sin conexión */ }
+  return false;
 }
 let saveMediaTimer=null;
 function saveMedia(){
   clearTimeout(saveMediaTimer);
   saveMediaTimer = setTimeout(async ()=>{
-    try{ await window.storage.set('obc-media', JSON.stringify(media), false); }
-    catch(e){ console.error('No se pudo guardar la firma/foto (puede ser demasiado grande)', e); showToast('No se pudo guardar la imagen — prueba con una foto más pequeña'); }
+    const ok = await storageSet('obc-media', JSON.stringify(media));
+    if(!ok) showToast('No se pudo guardar la imagen — prueba con una foto más pequeña');
   }, 350);
 }
 function resizeImageFile(file, maxDim, quality){
@@ -964,6 +1065,75 @@ const RENDERERS = {
 
   fundadores(main){
     docHead(main, 'Paso 2 · Art. 8 y 9', 'Miembros fundadores', 'Se requieren al menos 3 miembros fundadores, mayores de 16 años y residentes permanentes de la comunidad. Puedes dibujar la firma de cada uno y adjuntar la foto de su cédula — se incluirán en el Acta y en el Word final.');
+
+    const dbCard = document.createElement('div'); dbCard.className='card';
+    dbCard.innerHTML = `<h3>Servidor</h3>
+      <p style="font-size:13.5px; color:var(--ink-soft); line-height:1.6;">${getApiUrl() ? 'Esta página está conectada a un servidor. Todo el expediente (organización, junta, estatuto, plan de trabajo, actas, nota de solicitud) se guarda solo ahí cada vez que se edita algo. Los fundadores cada quien guarda su tarjeta desde su propia sección, más abajo.' : 'Esta página todavía no está conectada a ningún servidor — los datos solo se guardan en este dispositivo.'}</p>`;
+    const dbRow = document.createElement('div'); dbRow.className='row-actions';
+    const saveAllBtn = document.createElement('button'); saveAllBtn.className='btn sm'; saveAllBtn.textContent='Guardar todo el expediente ahora';
+    saveAllBtn.onclick = ()=>{
+      if(!getApiUrl()){ showToast('Esta página no tiene un servidor configurado'); return; }
+      syncExpedienteToServer();
+      showToast('Enviando al servidor…');
+    };
+    const loadAllBtn = document.createElement('button'); loadAllBtn.className='btn sm'; loadAllBtn.textContent='Cargar todo el expediente desde el servidor';
+    loadAllBtn.onclick = async ()=>{
+      if(!getApiUrl()){ showToast('Esta página no tiene un servidor configurado'); return; }
+      const ok = await cargarExpedienteDelServidor();
+      if(ok){ renderAll(); showToast('Expediente cargado del servidor'); }
+      else{ showToast('No se pudo conectar, o el servidor todavía no tiene nada guardado'); }
+    };
+    const loadFromDbBtn = document.createElement('button'); loadFromDbBtn.className='btn ghost sm'; loadFromDbBtn.textContent='Cargar fundadores desde el servidor';
+    loadFromDbBtn.onclick = async ()=>{
+      const url = getApiUrl();
+      if(!url){ showToast('Esta página no tiene un servidor configurado'); return; }
+      try{
+        const res = await apiFetch(url.replace(/\/$/,'') + '/listar_fundadores.php');
+        const json = await res.json();
+        if(!json.ok) throw new Error(json.error || 'error');
+        const count = mergeFundadoresFromServerRows(json.fundadores);
+        saveData(); saveMedia(); renderAll();
+        showToast(`${count} fundador(es) cargados del servidor`);
+      }catch(e){ showToast('No se pudo conectar al servidor'); }
+    };
+    if(getApiUrl()){
+      dbRow.appendChild(saveAllBtn); dbRow.appendChild(loadAllBtn); dbRow.appendChild(loadFromDbBtn);
+      dbCard.appendChild(dbRow);
+    }
+    main.appendChild(dbCard);
+
+    const shareCard = document.createElement('div'); shareCard.className='card';
+    shareCard.innerHTML = `<h3>O por archivo, sin servidor</h3>
+      <p style="font-size:13.5px; color:var(--ink-soft); line-height:1.6;">Cada fundador(a) puede abrir esta misma página en su propio celular, llenar solo su tarjeta (nombre, cédula, firma y foto), y luego presionar <b>"Descargar mis datos"</b> en su tarjeta — eso genera un archivito pequeño (.json). Que te lo envíe por WhatsApp o correo, y tú lo importas aquí abajo para juntarlo todo en un solo expediente en tu computadora.</p>`;
+    const importRow = document.createElement('div'); importRow.className='row-actions'; importRow.style.marginTop='10px';
+    const importInput = document.createElement('input'); importInput.type='file'; importInput.accept='.json,application/json'; importInput.multiple = true;
+    importInput.addEventListener('change', async ()=>{
+      const files = Array.from(importInput.files || []);
+      let count = 0;
+      for(const file of files){
+        try{
+          const text = await file.text();
+          const obj = JSON.parse(text);
+          if(!obj || typeof obj !== 'object') continue;
+          let targetIdx = data.fundadores.findIndex(f => !f.nombre && !f.cedula);
+          if(targetIdx === -1){ data.fundadores.push(blankFundador()); targetIdx = data.fundadores.length - 1; }
+          data.fundadores[targetIdx] = {
+            nombre: obj.nombre || '', cedula: obj.cedula || '', direccion: obj.direccion || '',
+            telefono: obj.telefono || '', genero: obj.genero || '',
+          };
+          if(obj.firma) media.firmas[targetIdx] = obj.firma;
+          if(obj.cedulaFoto) media.cedulas[targetIdx] = obj.cedulaFoto;
+          count++;
+        }catch(e){ /* archivo inválido, se ignora */ }
+      }
+      if(count){ saveData(); saveMedia(); renderAll(); showToast(`${count} fundador(es) importado(s)`); }
+      else{ showToast('No se pudo leer el archivo'); }
+      importInput.value = '';
+    });
+    importRow.appendChild(importInput);
+    shareCard.appendChild(importRow);
+    main.appendChild(shareCard);
+
     const card = document.createElement('div'); card.className='card';
     if(data.fundadores.length < 3){
       const b = document.createElement('div'); b.className='banner warn'; b.textContent = `Actualmente hay ${data.fundadores.length} fundador(es). El Decreto exige un mínimo de 3.`;
@@ -989,6 +1159,40 @@ const RENDERERS = {
       mediaGrid.appendChild(signaturePadWidget(i));
       mediaGrid.appendChild(cedulaPhotoWidget(i));
       item.appendChild(mediaGrid);
+      const exportBtn = document.createElement('button'); exportBtn.className='btn ghost sm'; exportBtn.style.marginTop='10px'; exportBtn.textContent='📤 Descargar mis datos (para enviar)';
+      exportBtn.onclick = ()=>{
+        const payload = {
+          nombre: f.nombre||'', cedula: f.cedula||'', direccion: f.direccion||'', telefono: f.telefono||'', genero: f.genero||'',
+          firma: media.firmas[i] || null, cedulaFoto: media.cedulas[i] || null,
+        };
+        const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url;
+        a.download = `Fundador_${(f.nombre||'sin_nombre').replace(/[^A-Za-z0-9]+/g,'_')}.json`;
+        a.click(); URL.revokeObjectURL(url);
+      };
+      item.appendChild(exportBtn);
+      const dbBtn = document.createElement('button'); dbBtn.className='btn sm'; dbBtn.style.marginTop='10px'; dbBtn.style.marginLeft='8px'; dbBtn.textContent='🗄️ Guardar en el servidor';
+      dbBtn.onclick = async ()=>{
+        const url = getApiUrl();
+        if(!url){ showToast('Primero pon la URL del servidor arriba'); return; }
+        try{
+          const payload = {
+            id: f._serverId || null,
+            nombre: f.nombre||'', cedula: f.cedula||'', direccion: f.direccion||'', telefono: f.telefono||'', genero: f.genero||'',
+            firma: media.firmas[i] || null, cedulaFoto: media.cedulas[i] || null,
+          };
+          const res = await apiFetch(url.replace(/\/$/,'') + '/guardar_fundador.php', {
+            method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+          });
+          const json = await res.json();
+          if(!json.ok) throw new Error(json.error || 'error');
+          f._serverId = json.id;
+          saveData();
+          showToast('Guardado en el servidor');
+        }catch(e){ showToast('No se pudo guardar en el servidor — revisa la URL y que XAMPP esté corriendo'); }
+      };
+      item.appendChild(dbBtn);
       card.appendChild(item);
     });
     const addBtn = document.createElement('button'); addBtn.className='btn ghost sm'; addBtn.textContent='+ Añadir fundador(a)';
@@ -1301,6 +1505,10 @@ const RENDERERS = {
   data.plan.actividades = data.plan.actividades && data.plan.actividades.length ? data.plan.actividades : [blankActividad()];
   data.fundadores = data.fundadores && data.fundadores.length >= 3 ? data.fundadores : [blankFundador(), blankFundador(), blankFundador()];
   renderAll();
+  if(getApiUrl()){
+    const ok = await cargarExpedienteDelServidor();
+    if(ok) renderAll();
+  }
 })();
 </script>
 </body>
