@@ -2,1849 +2,1531 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>DSE Configuration Suite - Entrenamiento (100% Web)</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<!--
-================================================================================
- SIMULADOR DE ENTRENAMIENTO - CLON DEL DSE CONFIGURATION SUITE
- 100% HTML + CSS + JavaScript (sin backend, sin Python, sin servidor)
-================================================================================
- Archivo completamente AUTÓNOMO para GitHub Pages. Todo el "firmware" que
- antes corría en un hilo de Python ahora corre con setInterval() en el
- navegador. Todo el código y los comentarios están en ESPAÑOL.
-
- NOVEDADES DE ESTA VERSIÓN:
-   1) Protecciones adicionales: Voltaje, Frecuencia y Temperatura.
-   2) Gráfica histórica del amperaje (Canvas, sin librerías externas).
-   3) Sonido de alarma (Web Audio API, sin archivos de audio externos).
-   4) Modo oscuro / claro.
-   5) Reportes de Fallas: cada disparo genera un reporte con causa SUGERIDA
-      automáticamente, que el operador puede corregir manualmente. Se puede
-      exportar a CSV/TXT y se genera un correo pre-redactado para enviarlo
-      a la persona que contrata el servicio (un sitio estático no puede
-      enviar correos por sí solo, así que se abre el cliente de correo del
-      operador con todo ya escrito, listo para dar "Enviar").
-   6) Modo Asistido de Pistón: antes de llegar al límite de disparo, el
-      sistema hace una pausa preventiva corta y automática (o manual, con
-      un botón de un solo clic) para que la operación continúe sin tener
-      que estar apagando y encendiendo todo el sistema.
-================================================================================
--->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expediente OBC — Gestor de constitución</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
   :root{
-    --gris-ventana:#d9dce1;
-    --gris-panel:#f2f3f5;
-    --gris-borde:#a9adb5;
-    --gris-sidebar:#c3c7ce;
-    --gris-sidebar-header:#9aa0aa;
-    --texto-oscuro:#20242b;
-    --texto-gris:#4b5058;
-    --azul-acento:#1e5fa8;
-    --verde-ok:#1f9d55;
-    --amarillo-alerta:#c99a1e;
-    --rojo-falla:#c62828;
-    --led-gris:#9199a3;
-    --lcd-fondo-verde:#8fae4f;
-    --lcd-texto-verde:#1c2b0e;
-    --lcd-fondo-alerta:#7a1414;
-    --lcd-texto-alerta:#ffe6e6;
-    --superficie:#ffffff;
+    --paper:#f2ede0;
+    --paper-dark:#e7dfc9;
+    --ink:#2b2a26;
+    --ink-soft:#5c584d;
+    --pine:#1f4d3a;
+    --pine-dark:#123024;
+    --sello:#a3372b;
+    --sello-soft:#c9564a;
+    --line:#c9bfa0;
+    --gold:#a3822f;
+    --ok:#2f6b46;
+    --paper-shadow: 0 1px 0 rgba(43,42,38,.06), 0 8px 24px rgba(43,42,38,.08);
   }
-  /* ---------- Modo oscuro: se activa agregando la clase "tema-oscuro" al <body> ---------- */
-  body.tema-oscuro{
-    --gris-ventana:#161a20;
-    --gris-panel:#1f242c;
-    --gris-borde:#3a4048;
-    --gris-sidebar:#12151a;
-    --gris-sidebar-header:#0c0e12;
-    --texto-oscuro:#e7e9ec;
-    --texto-gris:#a3aab3;
-    --azul-acento:#4a90e2;
-    --led-gris:#4a5058;
-    --superficie:#20262e;
-  }
-  *{ box-sizing:border-box; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
   body{
-    background-color:var(--gris-ventana);
-    color:var(--texto-oscuro);
-    font-family:"Segoe UI", Tahoma, Arial, sans-serif;
-    margin:0;
-    transition:background-color .2s ease, color .2s ease;
+    background:
+      radial-gradient(1200px 800px at 10% -10%, #ece3cc 0%, transparent 60%),
+      var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+  }
+  ::selection{ background: var(--gold); color:#fff; }
+
+  h1,h2,h3{ font-family:'Source Serif 4', serif; font-weight:700; margin:0 0 .3em; color:var(--pine-dark); }
+  .eyebrow{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--sello); }
+
+  a{ color:var(--pine); }
+
+  /* ===== Layout ===== */
+  .app{ display:flex; min-height:100vh; }
+  .stepper{
+    width:270px; flex:0 0 270px;
+    background: var(--pine-dark);
+    color:#e8e2cf;
+    padding:28px 20px 40px;
+    position:sticky; top:0; align-self:flex-start; height:100vh; overflow-y:auto;
+  }
+  .stepper .brand{
+    font-family:'Source Serif 4', serif; font-size:22px; color:#fff; margin-bottom:2px;
+  }
+  .stepper .brand small{ display:block; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; color:#9fb8a9; text-transform:uppercase; margin-top:4px;}
+  .stepper .decreto{ font-size:11px; color:#9fb8a9; margin:14px 0 26px; line-height:1.5; padding-bottom:18px; border-bottom:1px solid rgba(255,255,255,.12);}
+  .steps-list{ list-style:none; margin:0; padding:0; }
+  .steps-list li{ margin-bottom:2px; }
+  .step-btn{
+    width:100%; display:flex; align-items:center; gap:12px;
+    background:none; border:none; color:#cfe0d2; text-align:left;
+    padding:11px 10px; border-radius:6px; cursor:pointer; font-size:13.5px;
+    font-family:'IBM Plex Sans', sans-serif;
+  }
+  .step-btn:hover{ background:rgba(255,255,255,.06); }
+  .step-btn.active{ background:rgba(255,255,255,.1); color:#fff; font-weight:600; }
+  .step-num{
+    flex:0 0 26px; height:26px; border-radius:50%; border:1.5px solid #5a7c69;
+    display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; color:#cfe0d2;
+  }
+  .step-btn.done .step-num{ background:var(--sello); border-color:var(--sello); color:#fff; }
+  .step-btn.active .step-num{ border-color:#fff; }
+  .stepper-foot{ margin-top:28px; padding-top:18px; border-top:1px solid rgba(255,255,255,.12); font-size:11.5px; color:#9fb8a9; line-height:1.5;}
+
+  .main{ flex:1; padding:36px 48px 90px; max-width:900px; }
+  .doc-head{ margin-bottom:26px; }
+  .doc-head .eyebrow{ margin-bottom:8px; display:block;}
+  .doc-head p.lead{ color:var(--ink-soft); max-width:640px; line-height:1.55; font-size:14.5px; }
+
+  .card{
+    background:#fbf8ef; border:1px solid var(--line); border-radius:3px;
+    box-shadow: var(--paper-shadow); padding:26px 28px; margin-bottom:22px; position:relative;
+  }
+  .card::before{ /* punch holes, folder feel */
+    content:""; position:absolute; left:-1px; top:0; bottom:0; width:0;
+  }
+  .card h3{ font-size:18px; margin-bottom:14px; }
+  .card h3 .req{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--sello); border:1px solid var(--sello); border-radius:3px; padding:2px 6px; margin-left:8px; vertical-align:2px; }
+
+  .grid{ display:grid; gap:14px; }
+  .grid.cols-2{ grid-template-columns:1fr 1fr; }
+  .grid.cols-3{ grid-template-columns:1fr 1fr 1fr; }
+  @media (max-width:760px){ .grid.cols-2,.grid.cols-3{ grid-template-columns:1fr; } .main{padding:24px 18px 70px;} .stepper{width:100%; height:auto; position:relative; flex:none;} .app{flex-direction:column;} }
+
+  label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:5px; font-weight:500; }
+  input[type=text], input[type=date], input[type=time], input[type=number], textarea, select{
+    width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:3px;
+    background:#fff; font-family:'IBM Plex Sans', sans-serif; font-size:14px; color:var(--ink);
+  }
+  textarea{ resize:vertical; min-height:70px; line-height:1.5; }
+  input:focus, textarea:focus, select:focus{ outline:2px solid var(--pine); outline-offset:1px; }
+  .field{ margin-bottom:14px; }
+  .hint{ font-size:11.5px; color:#8b8570; margin-top:4px; line-height:1.4; }
+
+  .btn{
+    font-family:'IBM Plex Sans', sans-serif; font-weight:600; font-size:13px; cursor:pointer;
+    border-radius:3px; padding:9px 16px; border:1px solid var(--pine); background:var(--pine); color:#fff;
+  }
+  .btn:hover{ background:var(--pine-dark); }
+  .btn.ghost{ background:none; color:var(--pine); }
+  .btn.ghost:hover{ background:rgba(31,77,58,.07); }
+  .btn.sm{ padding:6px 11px; font-size:12px; }
+  .btn.danger{ border-color:var(--sello); color:var(--sello); background:none; }
+  .btn.danger:hover{ background:rgba(163,55,43,.08); }
+  .row-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+
+  .repeat-item{
+    border:1px dashed var(--line); border-radius:4px; padding:14px; margin-bottom:12px; position:relative; background:#fdfcf6;
+  }
+  .repeat-item .remove{ position:absolute; top:8px; right:8px; }
+
+  .nav-buttons{ display:flex; justify-content:space-between; margin-top:30px; }
+
+  table.list-table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:10px;}
+  table.list-table th, table.list-table td{ border:1px solid var(--line); padding:6px 8px; text-align:left; }
+  table.list-table th{ background:var(--paper-dark); font-weight:600; }
+
+  /* Document preview (paper-in-paper) */
+  .doc-preview{
+    background:#fffdf6; border:1px solid var(--line); border-radius:2px;
+    padding:34px 38px; font-family:'IBM Plex Mono', monospace; font-size:12.4px; line-height:1.75;
+    white-space:pre-wrap; color:#2b2a26; box-shadow: inset 0 0 0 1px rgba(0,0,0,.02);
+    position:relative;
+  }
+  .doc-preview .gaceta-mark{
+    position:absolute; top:16px; right:20px; font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:#b9b190; letter-spacing:.08em;
   }
 
-  /* ---------- Barra superior ---------- */
-  #barra-superior{
-    background-color:var(--gris-sidebar-header);
-    color:#f2f3f5;
-    height:52px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:0 20px;
-    gap:16px;
+  .stamp{
+    display:inline-flex; align-items:center; gap:8px; font-family:'IBM Plex Mono',monospace; font-size:11px;
+    color:var(--sello); border:2px solid var(--sello); border-radius:5px; padding:6px 12px; transform:rotate(-3deg);
+    text-transform:uppercase; letter-spacing:.06em; background:rgba(163,55,43,.05);
   }
-  #barra-superior h1{ font-size:16px; font-weight:700; margin:0; }
-  #controles-barra{ display:flex; align-items:center; gap:14px; }
-  #reloj-indicador{ font-size:12px; opacity:.85; }
-  .boton-icono{
-    background:transparent; border:1px solid rgba(255,255,255,.35);
-    color:#f2f3f5; border-radius:6px; padding:6px 10px; font-size:13px;
-    cursor:pointer;
-  }
-  .boton-icono:hover{ background:rgba(255,255,255,.12); }
-  .boton-icono.activo{ background:rgba(255,255,255,.25); }
+  .stamp.ok{ color:var(--ok); border-color:var(--ok); background:rgba(47,107,70,.06); }
 
-  /* ---------- Contenedor general ---------- */
-  #contenedor-general{ display:flex; min-height:calc(100vh - 52px); }
+  .checklist{ list-style:none; margin:0; padding:0; }
+  .checklist li{ display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--paper-dark); font-size:13.5px;}
+  .checklist li:last-child{ border-bottom:none; }
+  .checklist .mark{ flex:0 0 20px; height:20px; border-radius:50%; border:1.5px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:11px; margin-top:1px;}
+  .checklist li.done .mark{ background:var(--ok); border-color:var(--ok); color:#fff; }
+  .checklist li.done{ color:var(--ink-soft); text-decoration:line-through; text-decoration-color:#b7b19b; }
 
-  /* ---------- Sidebar tipo árbol DSE ---------- */
-  #sidebar{
-    background-color:var(--gris-sidebar);
-    width:280px;
-    flex-shrink:0;
-    padding:14px 10px;
+  .banner{
+    background:var(--paper-dark); border-left:3px solid var(--gold); padding:12px 16px; font-size:13px; border-radius:2px; margin-bottom:20px; line-height:1.55;
   }
-  .encabezado-carpeta{
-    font-weight:700; font-size:13px; color:var(--texto-oscuro);
-    margin:14px 6px 4px 6px;
-  }
-  .item-menu{
-    display:block; width:100%; text-align:left;
-    background:transparent; border:none; border-radius:6px;
-    padding:9px 10px 9px 26px; font-size:13px; color:var(--texto-oscuro);
-    margin-bottom:2px; cursor:pointer;
-  }
-  .item-menu:hover{ background-color:rgba(0,0,0,.08); }
-  .item-menu.activo{ background-color:var(--azul-acento); color:#fff; }
+  .banner.warn{ border-left-color:var(--sello); background:#f5e6e0; }
 
-  .boton-sobrecarga{
-    width:100%; background-color:#8a2c2c; border:none; color:#fff;
-    font-weight:700; font-size:12px; padding:11px; border-radius:6px;
-    margin-top:20px; cursor:pointer;
+  .toast{
+    position:fixed; bottom:22px; right:22px; background:var(--pine-dark); color:#fff; padding:10px 18px;
+    border-radius:4px; font-size:13px; box-shadow:0 6px 20px rgba(0,0,0,.25); opacity:0; transform:translateY(8px);
+    transition:all .25s ease; pointer-events:none; z-index:50;
   }
-  .boton-sobrecarga:hover{ background-color:#6e2222; }
-  .boton-sobrecarga.activo{ background-color:#5c1616; }
+  .toast.show{ opacity:1; transform:translateY(0); }
 
-  .nota-sidebar{
-    font-size:11px; color:var(--texto-gris); margin-top:16px; padding:0 6px;
-    line-height:1.4;
-  }
-
-  /* ---------- Contenido / páginas ---------- */
-  #contenido{ flex-grow:1; }
-  .panel-pagina{ display:none; padding:26px 30px; }
-  .panel-pagina.visible{ display:block; }
-  .subtitulo-pagina{ color:var(--texto-gris); font-size:13px; margin-bottom:18px; }
-  h4.titulo-pagina{ margin:0 0 4px 0; font-weight:700; }
-
-  .tarjeta-dse{
-    background-color:var(--gris-panel);
-    border:1px solid var(--gris-borde);
-    border-radius:10px;
-    padding:22px;
-  }
-
-  /* ---------- Pantalla LCD ---------- */
-  #pantalla-lcd{
-    background-color:var(--lcd-fondo-verde);
-    color:var(--lcd-texto-verde);
-    border:4px solid #4a4e55;
-    border-radius:6px;
-    padding:18px 22px;
-    font-family:"Consolas","Courier New",monospace;
-    max-width:600px;
-    transition:background-color .25s ease, color .25s ease;
-  }
-  #pantalla-lcd.en-falla{
-    background-color:var(--lcd-fondo-alerta);
-    color:var(--lcd-texto-alerta);
-  }
-  #pantalla-lcd .linea-titulo{ font-size:14px; font-weight:700; letter-spacing:1px; }
-  #pantalla-lcd .linea-amperaje{ font-size:30px; font-weight:700; margin:4px 0 14px 0; }
-  #pantalla-lcd .linea-motor{ font-size:14px; font-weight:700; margin-bottom:6px; }
-  #pantalla-lcd .linea-estado{ font-size:21px; font-weight:700; }
-
-  .barra-nivel-contenedor{
-    background-color:rgba(0,0,0,.15);
-    border:2px solid var(--lcd-texto-verde);
-    border-radius:4px;
-    height:26px;
-    margin-bottom:14px;
-    overflow:hidden;
-  }
-  #pantalla-lcd.en-falla .barra-nivel-contenedor{ border-color:var(--lcd-texto-alerta); }
-  #barra-nivel{
-    height:100%; width:0%;
-    background-color:var(--verde-ok);
-    transition:width .2s ease, background-color .2s ease;
-  }
-
-  /* ---------- LEDs virtuales ---------- */
-  .led{
-    width:20px; height:20px; border-radius:50%;
-    background-color:var(--led-gris);
-    display:inline-block;
-    transition:background-color .2s ease, box-shadow .2s ease;
-  }
-  .led.on-verde{ background-color:var(--verde-ok); box-shadow:0 0 8px var(--verde-ok); }
-  .led.on-rojo{ background-color:var(--rojo-falla); box-shadow:0 0 8px var(--rojo-falla); }
-  .led.on-amarillo{ background-color:var(--amarillo-alerta); box-shadow:0 0 8px var(--amarillo-alerta); }
-  .fila-led{ display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-  .fila-led span.etiqueta{ font-size:13px; color:var(--texto-oscuro); }
-  .fila-leds-contenedor{ display:flex; gap:40px; margin-top:20px; flex-wrap:wrap; }
-
-  /* ---------- Botones generales ---------- */
-  .boton-primario{
-    background-color:var(--azul-acento); color:#fff; border:none;
-    padding:10px 20px; border-radius:6px; font-weight:700; font-size:13px;
-    cursor:pointer; margin-top:14px;
-  }
-  .boton-primario:hover{ background-color:#164a86; }
-  .boton-primario:disabled{ background-color:#9aa5b1; cursor:not-allowed; }
-  .boton-secundario{
-    background-color:#8a8f99; color:#fff; border:none;
-    padding:8px 16px; border-radius:6px; font-size:12px; font-weight:700;
-    cursor:pointer;
-  }
-  .boton-secundario:hover{ background-color:#767b85; }
-  .boton-verde{ background-color:var(--verde-ok); }
-  .boton-verde:hover{ background-color:#177d43; }
-
-  /* ---------- Formulario de protección ---------- */
-  .fila-formulario{
-    display:flex; align-items:center; justify-content:space-between;
-    margin-bottom:16px; max-width:460px;
-  }
-  .fila-formulario label{ font-size:14px; }
-  .fila-formulario input[type="number"]{
-    width:110px; padding:7px 9px; border:1px solid var(--gris-borde);
-    border-radius:5px; font-size:14px; background:var(--superficie); color:var(--texto-oscuro);
-  }
-  .fila-checkbox{ display:flex; align-items:center; gap:10px; margin-bottom:18px; }
-  .fila-checkbox input[type="checkbox"]{ width:17px; height:17px; }
-  .fila-checkbox label{ font-size:14px; }
-  #mensaje-confirmacion, #mensaje-confirmacion-extra{ font-size:13px; margin-top:8px; min-height:18px; }
-
-  /* ---------- Pistones ---------- */
-  .fila-pistones{ display:flex; gap:20px; max-width:680px; flex-wrap:wrap; }
-  .panel-piston{
-    background-color:var(--gris-panel);
-    border:1px solid var(--gris-borde);
-    border-radius:10px;
-    padding:22px;
-    text-align:center;
-    flex:1;
-    min-width:220px;
-  }
-  .panel-piston h6{ margin:0 0 2px 0; font-weight:700; font-size:15px; }
-  .panel-piston .sub{ font-size:12px; color:var(--texto-gris); margin-bottom:14px; }
-  .estado-piston{ font-weight:700; font-size:13px; margin-top:8px; color:var(--texto-gris); }
-  .estado-piston.expandido{ color:var(--verde-ok); }
-
-  /* ---------- Log ---------- */
-  #caja-log{
-    background-color:#12151a;
-    color:#8fe38f;
-    font-family:"Consolas","Courier New",monospace;
-    font-size:12.5px;
-    border-radius:8px;
-    padding:14px;
-    height:380px;
-    overflow-y:auto;
-    white-space:pre-wrap;
-  }
-
-  /* ---------- Gráfica histórica ---------- */
-  #grafica-amperaje{
-    background-color:var(--superficie);
-    border:1px solid var(--gris-borde);
-    border-radius:10px;
-    max-width:100%;
-  }
-
-  /* ---------- Protecciones adicionales (tarjetas de medición) ---------- */
-  .fila-medidores{ display:flex; gap:18px; flex-wrap:wrap; margin-top:6px; }
-  .tarjeta-medidor{
-    background-color:var(--gris-panel);
-    border:1px solid var(--gris-borde);
-    border-radius:10px;
-    padding:18px 22px;
-    min-width:200px;
-    flex:1;
-  }
-  .tarjeta-medidor .etiqueta-medidor{ font-size:12px; color:var(--texto-gris); font-weight:700; }
-  .tarjeta-medidor .valor-medidor{ font-size:26px; font-weight:700; margin:4px 0; }
-  .tarjeta-medidor .rango-medidor{ font-size:11px; color:var(--texto-gris); }
-
-  /* ---------- Reportes de Fallas ---------- */
-  #tabla-reportes{ width:100%; border-collapse:collapse; font-size:13px; }
-  #tabla-reportes th{
-    text-align:left; background-color:var(--gris-sidebar-header); color:#fff;
-    padding:9px 10px; font-size:12px;
-  }
-  #tabla-reportes td{
-    padding:9px 10px; border-bottom:1px solid var(--gris-borde); vertical-align:top;
-  }
-  #tabla-reportes select{
-    padding:5px 6px; border-radius:5px; border:1px solid var(--gris-borde);
-    background:var(--superficie); color:var(--texto-oscuro); font-size:12px; max-width:220px;
-  }
-  .etiqueta-causa-sugerida{ font-size:11px; color:var(--texto-gris); display:block; margin-top:3px; }
-  .fila-botones-reporte{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
-  .sin-reportes{ color:var(--texto-gris); font-size:13px; padding:20px 0; }
-  #banner-reporte-listo{
-    display:none;
-    background-color:#fff6d8; border:1px solid var(--amarillo-alerta);
-    color:#5c4a06; padding:12px 16px; border-radius:8px; margin-bottom:16px;
-    font-size:13px;
-  }
-  body.tema-oscuro #banner-reporte-listo{ background-color:#3a3110; color:#f0dd8a; }
-
-  /* ---------- Diagrama de Cableado ---------- */
-  #aviso-cableado{
-    background-color:#fff0e0; border:1px solid #d98c3d; color:#5c3a10;
-    padding:14px 18px; border-radius:8px; margin-bottom:20px; font-size:13px;
-    max-width:820px; line-height:1.5;
-  }
-  body.tema-oscuro #aviso-cableado{ background-color:#3a2a12; color:#f0c98a; border-color:#a86b2c; }
-  #contenedor-svg-cableado{
-    background-color:var(--superficie); border:1px solid var(--gris-borde);
-    border-radius:10px; padding:10px; max-width:960px; overflow-x:auto;
-  }
-  .leyenda-colores{ display:flex; gap:22px; flex-wrap:wrap; margin:18px 0; }
-  .item-leyenda{ display:flex; align-items:center; gap:8px; font-size:12.5px; }
-  .muestra-color{ width:26px; height:6px; border-radius:3px; display:inline-block; }
-  #tabla-terminales{ width:100%; max-width:820px; border-collapse:collapse; font-size:13px; margin-top:10px; }
-  #tabla-terminales th{
-    text-align:left; background-color:var(--gris-sidebar-header); color:#fff;
-    padding:9px 10px; font-size:12px;
-  }
-  #tabla-terminales td{ padding:9px 10px; border-bottom:1px solid var(--gris-borde); }
-
-  /* ---------- Responsivo ---------- */
-  @media (max-width: 800px){
-    #contenedor-general{ flex-direction:column; }
-    #sidebar{ width:100%; }
-  }
+  .summary-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px;}
+  @media (max-width:760px){ .summary-grid{ grid-template-columns:1fr; } }
+  .summary-doc{ border:1px solid var(--line); border-radius:3px; padding:14px 16px; background:#fdfcf6; }
+  .summary-doc h4{ margin:0 0 6px; font-size:14px; font-family:'Source Serif 4', serif; color:var(--pine-dark);}
+  .summary-doc .meta{ font-size:11.5px; color:var(--ink-soft); margin-bottom:10px;}
 </style>
 </head>
 <body>
 
-  <div id="barra-superior">
-    <h1>DSE Configuration Suite &mdash; Entorno de Entrenamiento (100% Web)</h1>
-    <div id="controles-barra">
-      <button id="boton-sonido" class="boton-icono">&#128266; Sonido</button>
-      <button id="boton-tema" class="boton-icono">&#127769; Modo Oscuro</button>
-      <span id="reloj-indicador"></span>
-    </div>
-  </div>
+<div class="app">
 
-  <div id="contenedor-general">
+  <nav class="stepper">
+    <div class="brand">Expediente&nbsp;OBC<small>Gestor paso a paso</small></div>
+    <div class="decreto">Basado en el Decreto Ejecutivo N.º 32 de 28 de marzo de 2017 (Ministerio de Ambiente), Reglamento de reconocimiento de la personería jurídica de las Organizaciones de Base Comunitaria.</div>
+    <ul class="steps-list" id="stepsList"></ul>
+    <div class="stepper-foot">Tus datos se guardan en este dispositivo automáticamente mientras completas el expediente.</div>
+  </nav>
 
-    <!-- ======================= SIDEBAR TIPO ÁRBOL DSE ======================= -->
-    <div id="sidebar">
-      <div class="encabezado-carpeta">[-] CONFIGURACIÓN DEL MÓDULO</div>
-      <button class="item-menu activo" data-pagina="scada">&#8618; Pantalla Principal (Display SCADA)</button>
+  <main class="main" id="main"></main>
+</div>
 
-      <div class="encabezado-carpeta">[-] PROTECCIONES ELÉCTRICAS</div>
-      <button class="item-menu" data-pagina="proteccion">&#8618; Sobrecorriente (Amperaje)</button>
-      <button class="item-menu" data-pagina="proteccion-extra">&#8618; Protecciones Adicionales (V / Hz / &deg;C)</button>
-      <button class="item-menu" data-pagina="ct-calibre">&#8618; Transformador de Corriente (CT) y Calibre</button>
+<div class="toast" id="toast"></div>
 
-      <div class="encabezado-carpeta">[-] SECUENCIAS DE AUTOMATIZACIÓN</div>
-      <button class="item-menu" data-pagina="pistones">&#8618; Control de Pistones Neumáticos</button>
-
-      <div class="encabezado-carpeta">[-] REPORTES Y EVENTOS</div>
-      <button class="item-menu" data-pagina="reportes">&#8618; Reportes de Fallas</button>
-      <button class="item-menu" data-pagina="log">&#8618; Historial (Log)</button>
-
-      <div class="encabezado-carpeta">[-] DOCUMENTACIÓN TÉCNICA</div>
-      <button class="item-menu" data-pagina="cableado">&#8618; Diagrama de Cableado</button>
-
-      <button id="boton-sobrecarga" class="boton-sobrecarga">
-        &#9888; Simular Atascamiento / Sobrecarga
-      </button>
-
-      <div class="nota-sidebar">
-        Entorno de entrenamiento sin conexión a hardware real. Todo corre
-        localmente en tu navegador.
-      </div>
-    </div>
-
-    <!-- ======================= CONTENEDOR DE PÁGINAS ======================= -->
-    <div id="contenido">
-
-      <!-- ---------- PÁGINA 1: PANTALLA PRINCIPAL (DISPLAY SCADA) ---------- -->
-      <div class="panel-pagina visible" id="pagina-scada">
-        <h4 class="titulo-pagina">Pantalla Principal (Display SCADA)</h4>
-        <div class="subtitulo-pagina">Réplica del display físico del módulo, en tiempo real</div>
-
-        <div id="pantalla-lcd">
-          <div class="linea-titulo">GENERADOR AMPERAJE L1:</div>
-          <div class="linea-amperaje" id="lcd-amperaje">0.0 A</div>
-          <div class="barra-nivel-contenedor"><div id="barra-nivel"></div></div>
-          <div class="linea-motor" id="lcd-motor">Motor: EN MARCHA</div>
-          <div class="linea-estado" id="lcd-estado">ESTADO: OPERANDO</div>
-        </div>
-
-        <div class="fila-leds-contenedor">
-          <div class="fila-led">
-            <span id="led-alarma" class="led"></span>
-            <span class="etiqueta">LED ALARMA / DISPARO</span>
-          </div>
-          <div class="fila-led">
-            <span id="led-motor" class="led"></span>
-            <span class="etiqueta">LED MOTOR EN MARCHA</span>
-          </div>
-          <div class="fila-led">
-            <span id="led-asistido" class="led"></span>
-            <span class="etiqueta">MODO ASISTIDO ACTIVO</span>
-          </div>
-        </div>
-
-        <button id="boton-reset" class="boton-primario" style="display:none;">
-          REINICIAR ALERTA (RESET)
-        </button>
-
-        <h4 class="titulo-pagina" style="margin-top:30px;">Historial de Amperaje (últimos minutos)</h4>
-        <canvas id="grafica-amperaje" width="700" height="200"></canvas>
-      </div>
-
-      <!-- ---------- PÁGINA 2: AJUSTES DE SOBRECORRIENTE ---------- -->
-      <div class="panel-pagina" id="pagina-proteccion">
-        <h4 class="titulo-pagina">Ajustes de Sobrecorriente (Amperaje)</h4>
-        <div class="subtitulo-pagina">Formato de parámetros idéntico al árbol de configuración DSE</div>
-
-        <div class="tarjeta-dse" style="max-width:520px;">
-          <div class="fila-checkbox">
-            <input type="checkbox" id="chk-monitoreo" checked>
-            <label for="chk-monitoreo">Habilitar Monitoreo de Sobrecorriente</label>
-          </div>
-
-          <div class="fila-formulario">
-            <label for="input-umbral">Amperaje de Disparo por Falla (A)</label>
-            <input type="number" step="0.1" id="input-umbral" value="45.0">
-          </div>
-
-          <div class="fila-formulario">
-            <label for="input-retardo">Tiempo de Retardo / Tolerancia (seg)</label>
-            <input type="number" step="0.1" id="input-retardo" value="2.5">
-          </div>
-
-          <div class="fila-checkbox">
-            <input type="checkbox" id="chk-modo-automatico" checked>
-            <label for="chk-modo-automatico">Habilitar Modo Automático Total (si se desmarca, requiere RESET manual)</label>
-          </div>
-
-          <button id="boton-aplicar" class="boton-primario" style="margin-top:4px;">Aplicar Parámetros</button>
-          <div id="mensaje-confirmacion"></div>
-        </div>
-      </div>
-
-      <!-- ---------- PÁGINA 2b: PROTECCIONES ADICIONALES ---------- -->
-      <div class="panel-pagina" id="pagina-proteccion-extra">
-        <h4 class="titulo-pagina">Protecciones Adicionales</h4>
-        <div class="subtitulo-pagina">
-          Voltaje, Frecuencia y Temperatura simulados. Generan alertas visuales
-          independientes; no disparan la secuencia neumática (esa queda
-          reservada para la sobrecorriente).
-        </div>
-
-        <div class="fila-medidores">
-          <div class="tarjeta-medidor">
-            <div class="etiqueta-medidor">VOLTAJE L1 (V)</div>
-            <div class="valor-medidor" id="valor-voltaje">220.0 V</div>
-            <div class="rango-medidor">Seguro: 210&ndash;230 V</div>
-          </div>
-          <div class="tarjeta-medidor">
-            <div class="etiqueta-medidor">FRECUENCIA (Hz)</div>
-            <div class="valor-medidor" id="valor-frecuencia">60.0 Hz</div>
-            <div class="rango-medidor">Seguro: 59.3&ndash;60.7 Hz</div>
-          </div>
-          <div class="tarjeta-medidor">
-            <div class="etiqueta-medidor">TEMPERATURA MOTOR (&deg;C)</div>
-            <div class="valor-medidor" id="valor-temperatura">45.0 &deg;C</div>
-            <div class="rango-medidor">Seguro: hasta 90 &deg;C</div>
-          </div>
-        </div>
-
-        <div class="tarjeta-dse" style="max-width:560px; margin-top:22px;">
-          <div class="fila-formulario">
-            <label for="input-voltaje-max">Voltaje máximo permitido (V)</label>
-            <input type="number" step="1" id="input-voltaje-max" value="230">
-          </div>
-          <div class="fila-formulario">
-            <label for="input-voltaje-min">Voltaje mínimo permitido (V)</label>
-            <input type="number" step="1" id="input-voltaje-min" value="210">
-          </div>
-          <div class="fila-formulario">
-            <label for="input-temp-max">Temperatura máxima del motor (&deg;C)</label>
-            <input type="number" step="1" id="input-temp-max" value="90">
-          </div>
-          <button id="boton-aplicar-extra" class="boton-primario">Aplicar Parámetros</button>
-          <div id="mensaje-confirmacion-extra"></div>
-        </div>
-      </div>
-
-      <!-- ---------- PÁGINA 2c: TRANSFORMADOR DE CORRIENTE (CT) Y CALIBRE ---------- -->
-      <div class="panel-pagina" id="pagina-ct-calibre">
-        <h4 class="titulo-pagina">Transformador de Corriente (CT) y Calibre de Cable</h4>
-        <div class="subtitulo-pagina">
-          Aquí se ve la diferencia entre la corriente REAL que circula por la línea y
-          lo que el controlador realmente MUESTRA — y por qué el calibre del cable
-          importa tanto como la programación.
-        </div>
-
-        <div class="fila-medidores">
-          <div class="tarjeta-medidor">
-            <div class="etiqueta-medidor">CORRIENTE REAL EN LA LÍNEA L1</div>
-            <div class="valor-medidor" id="valor-amperaje-real">0.0 A</div>
-            <div class="rango-medidor">Lo que de verdad pasa por el cable (un instalador la mediría con una pinza amperimétrica)</div>
-          </div>
-          <div class="tarjeta-medidor">
-            <div class="etiqueta-medidor">LECTURA DEL CONTROLADOR</div>
-            <div class="valor-medidor" id="valor-amperaje-mostrado">0.0 A</div>
-            <div class="rango-medidor">Lo único que el controlador puede usar para decidir si dispara o no</div>
-          </div>
-        </div>
-
-        <div id="aviso-ct-desajuste" class="tarjeta-dse" style="display:none; max-width:700px; margin-top:16px; border-color:var(--rojo-falla); background-color:#fdeceb;"></div>
-
-        <div class="tarjeta-dse" style="max-width:560px; margin-top:22px;">
-          <h6 style="margin-top:0;">Relación de vueltas del CT (Transformador de Corriente)</h6>
-          <div class="fila-formulario">
-            <label for="input-ct-configurado">Relación configurada en el software (X:5)</label>
-            <input type="number" step="1" id="input-ct-configurado" value="100">
-          </div>
-          <div class="fila-formulario">
-            <label for="input-ct-real">Relación real del CT instalado en campo (X:5)</label>
-            <input type="number" step="1" id="input-ct-real" value="100">
-          </div>
-          <button id="boton-aplicar-ct" class="boton-primario">Aplicar Relación de CT</button>
-          <div id="mensaje-confirmacion-ct"></div>
-        </div>
-
-        <h4 class="titulo-pagina" style="margin-top:30px;">Calibre del Cable de Alimentación al Motor</h4>
-        <div class="subtitulo-pagina">
-          El cable se calienta según la corriente REAL, sin importar si el controlador
-          la ve bien o no. Un CT mal configurado puede esconder un cable recalentándose.
-        </div>
-        <div class="tarjeta-dse" id="tarjeta-calibre-motor" style="max-width:560px;">
-          <div class="fila-formulario">
-            <label for="select-calibre-motor">Calibre del conductor (AWG)</label>
-            <select id="select-calibre-motor">
-              <option value="14">AWG 14 (2.5 mm²) &ndash; máx. 15 A</option>
-              <option value="12">AWG 12 (4 mm²) &ndash; máx. 20 A</option>
-              <option value="10" selected>AWG 10 (6 mm²) &ndash; máx. 30 A</option>
-              <option value="8">AWG 8 (10 mm²) &ndash; máx. 40 A</option>
-              <option value="6">AWG 6 (16 mm²) &ndash; máx. 55 A</option>
-              <option value="4">AWG 4 (25 mm²) &ndash; máx. 70 A</option>
-            </select>
-          </div>
-          <div id="texto-calibre-motor" style="font-size:13px; margin-top:6px;"></div>
-          <div id="texto-estado-calibre-motor" style="font-weight:700; font-size:14px; margin-top:8px;"></div>
-        </div>
-
-        <h4 class="titulo-pagina" style="margin-top:30px;">Comparador de Líneas (L1 vs. L2)</h4>
-        <div class="subtitulo-pagina">
-          Ajusta una segunda línea hipotética (L2) con su propia corriente y calibre,
-          y compárala en vivo con la línea L1 de arriba.
-        </div>
-        <div class="tarjeta-dse" id="tarjeta-calibre-l2" style="max-width:560px;">
-          <div class="fila-formulario">
-            <label for="input-l2-corriente">Corriente simulada en L2 (A)</label>
-            <input type="number" step="0.5" id="input-l2-corriente" value="20.0">
-          </div>
-          <div class="fila-formulario">
-            <label for="select-calibre-l2">Calibre del conductor de L2 (AWG)</label>
-            <select id="select-calibre-l2">
-              <option value="14">AWG 14 (2.5 mm²) &ndash; máx. 15 A</option>
-              <option value="12" selected>AWG 12 (4 mm²) &ndash; máx. 20 A</option>
-              <option value="10">AWG 10 (6 mm²) &ndash; máx. 30 A</option>
-              <option value="8">AWG 8 (10 mm²) &ndash; máx. 40 A</option>
-              <option value="6">AWG 6 (16 mm²) &ndash; máx. 55 A</option>
-              <option value="4">AWG 4 (25 mm²) &ndash; máx. 70 A</option>
-            </select>
-          </div>
-          <div id="texto-calibre-l2" style="font-size:13px; margin-top:6px;"></div>
-          <div id="texto-estado-calibre-l2" style="font-weight:700; font-size:14px; margin-top:8px;"></div>
-        </div>
-      </div>
-
-      <!-- ---------- PÁGINA 3: CONTROL DE PISTONES NEUMÁTICOS ---------- -->
-      <div class="panel-pagina" id="pagina-pistones">
-        <h4 class="titulo-pagina">Control de Pistones Neumáticos</h4>
-        <div class="subtitulo-pagina">
-          Durante una FALLA, el sistema toma control automático de ambos pistones.
-          En operación normal, tú controlas el ciclo de producción desde aquí.
-        </div>
-
-        <div class="tarjeta-dse" style="max-width:640px; margin-bottom:20px;">
-          <button id="boton-operacion-continua" class="boton-primario boton-verde">
-            &#9654; Activar Operación Continua del Pistón
-          </button>
-
-          <div class="fila-checkbox" style="margin-top:18px;">
-            <input type="checkbox" id="chk-modo-asistido">
-            <label for="chk-modo-asistido">
-              Modo Asistido: pausar preventivamente el sistema antes de llegar al límite,
-              sin tener que apagar/encender todo manualmente
-            </label>
-          </div>
-
-          <button id="boton-ciclo-manual" class="boton-secundario" disabled>
-            Ciclo Manual de Un Clic (pausa y reanuda de inmediato)
-          </button>
-          <div id="mensaje-ciclo" style="font-size:12px; color:var(--texto-gris); margin-top:8px;"></div>
-        </div>
-
-        <div class="fila-pistones">
-          <div class="panel-piston">
-            <h6>PISTÓN A</h6>
-            <div class="sub">Liberar Presión</div>
-            <span id="led-piston-a" class="led"></span>
-            <div id="estado-piston-a" class="estado-piston">RETRAÍDO</div>
-          </div>
-          <div class="panel-piston">
-            <h6>PISTÓN B</h6>
-            <div class="sub">Limpieza de Material</div>
-            <span id="led-piston-b" class="led"></span>
-            <div id="estado-piston-b" class="estado-piston">RETRAÍDO</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ---------- PÁGINA 4: REPORTES DE FALLAS ---------- -->
-      <div class="panel-pagina" id="pagina-reportes">
-        <h4 class="titulo-pagina">Reportes de Fallas</h4>
-        <div class="subtitulo-pagina">
-          Cada disparo genera automáticamente un reporte con una causa SUGERIDA.
-          Revísala y corrígela antes de enviarla a tu cliente.
-        </div>
-
-        <div id="banner-reporte-listo">
-          &#9888; Hay un reporte nuevo de una falla reciente. Revisa la causa
-          sugerida abajo y, cuando estés listo, expórtalo o envíalo por correo.
-        </div>
-
-        <div class="fila-botones-reporte">
-          <button id="boton-exportar-csv" class="boton-secundario">Exportar Todo (CSV)</button>
-          <button id="boton-exportar-txt" class="boton-secundario">Exportar Todo (TXT)</button>
-          <button id="boton-enviar-correo" class="boton-primario" style="margin-top:0;">
-            &#9993; Enviar Último Reporte por Correo
-          </button>
-        </div>
-
-        <div id="contenedor-tabla-reportes"></div>
-      </div>
-
-      <!-- ---------- PÁGINA 5: REGISTRO DE EVENTOS (LOG) ---------- -->
-      <div class="panel-pagina" id="pagina-log">
-        <h4 class="titulo-pagina">Registro de Eventos (Historial Log)</h4>
-        <div class="subtitulo-pagina">Cada acción del sistema, con marca de tiempo exacta</div>
-        <button id="boton-limpiar-log" class="boton-secundario" style="margin-bottom:10px;">Limpiar historial</button>
-        <div id="caja-log"></div>
-      </div>
-
-      <!-- ---------- PÁGINA 6: DIAGRAMA DE CABLEADO (REFERENCIA) ---------- -->
-      <div class="panel-pagina" id="pagina-cableado">
-        <h4 class="titulo-pagina">Diagrama de Cableado</h4>
-        <div class="subtitulo-pagina">
-          Cómo se conecta, en concepto, cada sensor y cada actuador al módulo controlador
-        </div>
-
-        <div id="aviso-cableado">
-          &#9888; <strong>Esto es un diagrama de referencia educativo</strong>, pensado para
-          entender la LÓGICA de las conexiones (qué entra, qué sale, para qué sirve cada cable).
-          NO es un plano certificado de instalación. Para una instalación real, sigue siempre
-          la documentación exacta del fabricante del equipo y que la ejecute un
-          electricista calificado, respetando la normativa eléctrica vigente.
-        </div>
-
-        <div id="contenedor-svg-cableado">
-          <div style="font-size:12.5px; color:var(--texto-gris); margin-bottom:8px;">
-            &#128073; Haz clic sobre cualquier cable para simular que se desconecta (o reconectarlo)
-          </div>
-          <svg viewBox="0 0 960 760" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto;">
-            <!-- ===================== LÍNEAS DE CONEXIÓN (cada una es interactiva) ===================== -->
-            <!-- Entradas (izquierda) -->
-            <line class="cable-conexion" data-cable="bPlus" data-color-original="#c62828"
-                  x1="240" y1="75"  x2="380" y2="75"  stroke="#c62828" stroke-width="5" style="cursor:pointer;"/>
-            <line class="cable-conexion" data-cable="gnd" data-color-original="#20242b"
-                  x1="240" y1="163" x2="380" y2="163" stroke="#20242b" stroke-width="5" style="cursor:pointer;"/>
-            <line class="cable-conexion" data-cable="di1" data-color-original="#1e5fa8"
-                  x1="240" y1="251" x2="380" y2="251" stroke="#1e5fa8" stroke-width="5" style="cursor:pointer;"/>
-            <line class="cable-conexion" data-cable="v1" data-color-original="#1e5fa8"
-                  x1="240" y1="339" x2="380" y2="339" stroke="#1e5fa8" stroke-width="5" style="cursor:pointer;"/>
-            <line class="cable-conexion" data-cable="f1" data-color-original="#1e5fa8"
-                  x1="240" y1="427" x2="380" y2="427" stroke="#1e5fa8" stroke-width="5" style="cursor:pointer;"/>
-            <line class="cable-conexion" data-cable="t1" data-color-original="#1e5fa8"
-                  x1="240" y1="515" x2="380" y2="515" stroke="#1e5fa8" stroke-width="5" style="cursor:pointer;"/>
-            <line class="cable-conexion" data-cable="di2" data-color-original="#1f9d55"
-                  x1="240" y1="603" x2="380" y2="603" stroke="#1f9d55" stroke-width="5" style="cursor:pointer;"/>
-            <line class="cable-conexion" data-cable="di3" data-color-original="#1f9d55"
-                  x1="240" y1="691" x2="380" y2="691" stroke="#1f9d55" stroke-width="5" style="cursor:pointer;"/>
-            <!-- Salidas (derecha) -->
-            <line class="cable-conexion" data-cable="do1" data-color-original="#d98c3d"
-                  x1="580" y1="175" x2="720" y2="175" stroke="#d98c3d" stroke-width="5" style="cursor:pointer;"/>
-            <line class="cable-conexion" data-cable="do2" data-color-original="#d98c3d"
-                  x1="580" y1="335" x2="720" y2="335" stroke="#d98c3d" stroke-width="5" style="cursor:pointer;"/>
-            <line class="cable-conexion" data-cable="do3" data-color-original="#d98c3d"
-                  x1="580" y1="495" x2="720" y2="495" stroke="#d98c3d" stroke-width="5" style="cursor:pointer;"/>
-            <line class="cable-conexion" data-cable="do4" data-color-original="#d98c3d"
-                  x1="580" y1="655" x2="720" y2="655" stroke="#d98c3d" stroke-width="5" style="cursor:pointer;"/>
-
-            <!-- ===================== TERMINALES (puntos de conexión) ===================== -->
-            <g fill="#20242b">
-              <circle cx="240" cy="75"  r="4"/><circle cx="240" cy="163" r="4"/>
-              <circle cx="240" cy="251" r="4"/><circle cx="240" cy="339" r="4"/>
-              <circle cx="240" cy="427" r="4"/><circle cx="240" cy="515" r="4"/>
-              <circle cx="240" cy="603" r="4"/><circle cx="240" cy="691" r="4"/>
-              <circle cx="720" cy="175" r="4"/><circle cx="720" cy="335" r="4"/>
-              <circle cx="720" cy="495" r="4"/><circle cx="720" cy="655" r="4"/>
-            </g>
-
-            <!-- ===================== CAJAS DE DISPOSITIVOS DE CAMPO (IZQUIERDA) ===================== -->
-            <g font-family="Segoe UI, Arial, sans-serif" font-size="13">
-              <rect x="20" y="40"  width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="130" y="68"  text-anchor="middle" font-weight="700">Batería / Fuente</text>
-              <text x="130" y="86"  text-anchor="middle" font-size="11">+12&ndash;24V DC (Alimentación)</text>
-
-              <rect x="20" y="128" width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="130" y="156" text-anchor="middle" font-weight="700">Chasis / Tierra</text>
-              <text x="130" y="174" text-anchor="middle" font-size="11">GND &ndash; Común de control</text>
-
-              <rect x="20" y="216" width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="130" y="244" text-anchor="middle" font-weight="700">TC &ndash; Sensor de Corriente</text>
-              <text x="130" y="262" text-anchor="middle" font-size="11">Transformador de corriente en L1</text>
-
-              <rect x="20" y="304" width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="130" y="332" text-anchor="middle" font-weight="700">Sensor de Voltaje</text>
-              <text x="130" y="350" text-anchor="middle" font-size="11">Toma de tensión L1&ndash;N</text>
-
-              <rect x="20" y="392" width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="130" y="420" text-anchor="middle" font-weight="700">Sensor de Frecuencia</text>
-              <text x="130" y="438" text-anchor="middle" font-size="11">Señal desde el generador</text>
-
-              <rect x="20" y="480" width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="130" y="508" text-anchor="middle" font-weight="700">Sensor de Temperatura</text>
-              <text x="130" y="526" text-anchor="middle" font-size="11">RTD/NTC en el motor</text>
-
-              <rect x="20" y="568" width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="130" y="596" text-anchor="middle" font-weight="700">Fin de Carrera &ndash; Pistón A</text>
-              <text x="130" y="614" text-anchor="middle" font-size="11">Confirmación: posición retraída</text>
-
-              <rect x="20" y="656" width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="130" y="684" text-anchor="middle" font-weight="700">Fin de Carrera &ndash; Pistón B</text>
-              <text x="130" y="702" text-anchor="middle" font-size="11">Confirmación: posición retraída</text>
-            </g>
-
-            <!-- ===================== MÓDULO CONTROLADOR (CENTRO) ===================== -->
-            <rect x="380" y="40" width="200" height="700" rx="10" fill="#20242b" stroke="#4a4e55" stroke-width="2"/>
-            <text x="480" y="380" text-anchor="middle" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif"
-                  font-size="16" font-weight="700">MÓDULO</text>
-            <text x="480" y="402" text-anchor="middle" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif"
-                  font-size="16" font-weight="700">CONTROLADOR</text>
-            <text x="480" y="424" text-anchor="middle" fill="#9aa0aa" font-family="Segoe UI, Arial, sans-serif"
-                  font-size="12">(Estilo DSE)</text>
-
-            <!-- Etiquetas de terminal sobre el borde del módulo -->
-            <g font-family="Consolas, monospace" font-size="11" fill="#8fe38f">
-              <text x="388" y="72">B+</text>
-              <text x="388" y="160">GND</text>
-              <text x="388" y="248">DI-1</text>
-              <text x="388" y="336">V1</text>
-              <text x="388" y="424">F1</text>
-              <text x="388" y="512">T1</text>
-              <text x="388" y="600">DI-2</text>
-              <text x="388" y="688">DI-3</text>
-              <text x="536" y="172" text-anchor="end">DO-1</text>
-              <text x="536" y="332" text-anchor="end">DO-2</text>
-              <text x="536" y="492" text-anchor="end">DO-3</text>
-              <text x="536" y="652" text-anchor="end">DO-4</text>
-            </g>
-
-            <!-- ===================== CAJAS DE ACTUADORES (DERECHA) ===================== -->
-            <g font-family="Segoe UI, Arial, sans-serif" font-size="13">
-              <rect x="720" y="140" width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="830" y="168" text-anchor="middle" font-weight="700">Contactor del Motor</text>
-              <text x="830" y="186" text-anchor="middle" font-size="11">Corta/permite la marcha</text>
-
-              <rect x="720" y="300" width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="830" y="328" text-anchor="middle" font-weight="700">Electroválvula Pistón A</text>
-              <text x="830" y="346" text-anchor="middle" font-size="11">Liberar presión</text>
-
-              <rect x="720" y="460" width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="830" y="488" text-anchor="middle" font-weight="700">Electroválvula Pistón B</text>
-              <text x="830" y="506" text-anchor="middle" font-size="11">Limpieza de material</text>
-
-              <rect x="720" y="620" width="220" height="70" rx="6" fill="#f2f3f5" stroke="#a9adb5"/>
-              <text x="830" y="648" text-anchor="middle" font-weight="700">Baliza / Bocina</text>
-              <text x="830" y="666" text-anchor="middle" font-size="11">Alarma visual y sonora</text>
-            </g>
-          </svg>
-        </div>
-
-        <div class="leyenda-colores">
-          <div class="item-leyenda"><span class="muestra-color" style="background:#c62828;"></span> Alimentación DC (+)</div>
-          <div class="item-leyenda"><span class="muestra-color" style="background:#20242b;"></span> Común / Tierra (GND)</div>
-          <div class="item-leyenda"><span class="muestra-color" style="background:#1e5fa8;"></span> Señal de sensor (entrada)</div>
-          <div class="item-leyenda"><span class="muestra-color" style="background:#1f9d55;"></span> Confirmación de posición (entrada)</div>
-          <div class="item-leyenda"><span class="muestra-color" style="background:#d98c3d;"></span> Salida a actuador</div>
-        </div>
-
-        <button id="boton-restablecer-cables" class="boton-secundario" style="margin-bottom:16px;">
-          Restablecer todos los cables (reconectar)
-        </button>
-
-        <h4 class="titulo-pagina" style="margin-top:10px;">Tabla de Terminales</h4>
-        <table id="tabla-terminales">
-          <thead>
-            <tr><th>Terminal</th><th>Tipo</th><th>Función</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>B+ / GND</td><td>Alimentación</td><td>Energiza el módulo controlador (+12&ndash;24V DC típico)</td></tr>
-            <tr><td>DI-1</td><td>Entrada</td><td>Sensor de corriente (TC) &ndash; usado por la Protección de Sobrecorriente</td></tr>
-            <tr><td>V1</td><td>Entrada</td><td>Sensor de voltaje L1&ndash;N &ndash; usado por Protecciones Adicionales</td></tr>
-            <tr><td>F1</td><td>Entrada</td><td>Señal de frecuencia del generador &ndash; usado por Protecciones Adicionales</td></tr>
-            <tr><td>T1</td><td>Entrada</td><td>Sensor de temperatura del motor &ndash; usado por Protecciones Adicionales</td></tr>
-            <tr><td>DI-2</td><td>Entrada</td><td>Confirmación: Pistón A en posición retraída</td></tr>
-            <tr><td>DI-3</td><td>Entrada</td><td>Confirmación: Pistón B en posición retraída</td></tr>
-            <tr><td>DO-1</td><td>Salida</td><td>Corta la bobina/contactor del motor durante un disparo</td></tr>
-            <tr><td>DO-2</td><td>Salida</td><td>Activa la electroválvula del Pistón A (Liberar Presión)</td></tr>
-            <tr><td>DO-3</td><td>Salida</td><td>Activa la electroválvula del Pistón B (Limpieza de Material)</td></tr>
-            <tr><td>DO-4</td><td>Salida</td><td>Activa la baliza/bocina mientras la alarma está activa</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-    </div>
-  </div>
-
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
 <script>
-/* ============================================================================
-   TODA LA LÓGICA EN JAVASCRIPT PURO (sin backend)
-============================================================================ */
+/* ============ MODELO DE DATOS ============ */
+const STEPS = [
+  {id:'inicio', label:'Antes de empezar'},
+  {id:'org', label:'Datos de la organización'},
+  {id:'fundadores', label:'Miembros fundadores'},
+  {id:'junta', label:'Junta Directiva'},
+  {id:'constitucion', label:'Acta de Constitución'},
+  {id:'estatuto', label:'Estatuto'},
+  {id:'plan', label:'Plan de Trabajo'},
+  {id:'aprobacion', label:'Acta de aprobación'},
+  {id:'solicitud', label:'Nota de solicitud'},
+  {id:'expediente', label:'Expediente final'},
+];
 
-// ---------------------------------------------------------------------------
-// 1) ESTADO GLOBAL DEL SISTEMA
-// ---------------------------------------------------------------------------
-const estado = {
-  amperajeActual: 0.0,
-  estadoTexto: "SISTEMA OPERANDO",
-  motorEnMarcha: true,
-  alarmaActiva: false,
-  enSecuenciaNeumatica: false,
-
-  monitoreoHabilitado: true,
-  amperajeDisparo: 45.0,
-  retardoSeg: 2.5,
-  modoAutomaticoTotal: true,
-
-  pistonAExpandido: false,
-  pistonBExpandido: false,
-
-  motorBloqueado: false,
-  forzarSobrecarga: false,
-  tiempoInicioSobrecarga: null,
-  enEsperaRearranque: false,
-
-  // --- Operación continua / Modo Asistido ---
-  pistonOperando: false,        // operador activó la operación continua (producción)
-  modoAsistido: false,          // pausas preventivas automáticas
-  pausaPreventivaEnCurso: false,
-  contadorCiclosPreventivos: 0,
-
-  // --- Protecciones adicionales ---
-  voltaje: 220.0,
-  frecuencia: 60.0,
-  temperatura: 45.0,
-  voltajeMax: 230,
-  voltajeMin: 210,
-  temperaturaMax: 90,
-
-  // --- Gráfica histórica ---
-  historialAmperaje: [],   // { t: Date.now(), a: amperaje }
-
-  // --- Sonido y tema ---
-  sonidoActivado: true,
-  temaOscuro: false,
-
-  // --- Reportes de fallas ---
-  reportesFallas: [],
-  contadorReportes: 0,
-
-  // --- FÍSICA REAL vs LECTURA DEL CONTROLADOR (simulación de cableado) ---
-  // "Real" = lo que de verdad pasa en el cable/línea física.
-  // El valor que ve el controlador (estado.amperajeActual, .voltaje, etc.)
-  // puede diferir del real si un cable está desconectado o el CT está mal
-  // configurado - así se enseña por qué el cableado importa tanto como la lógica.
-  amperajeReal: 0.0,
-  voltajeReal: 220.0,
-  frecuenciaReal: 60.0,
-  temperaturaReal: 45.0,
-
-  // --- Transformador de Corriente (CT): relación de vueltas ---
-  relacionCTConfigurada: 100,   // lo que el software CREE que tiene instalado (ej. 100:5)
-  relacionCTReal: 100,          // lo que realmente está instalado en el campo
-
-  // --- Calibre de cable (calibre AWG) ---
-  calibreCableMotor: "10",
-  cableMotorEnRiesgo: false,
-
-  // --- Comparador de líneas (L1 vs L2) ---
-  comparadorL2Corriente: 20.0,
-  comparadorL2Calibre: "12",
-
-  // --- Estado de cada cable del diagrama (true = conectado) ---
-  cables: {
-    bPlus: true, gnd: true, di1: true, v1: true, f1: true, t1: true,
-    di2: true, di3: true, do1: true, do2: true, do3: true, do4: true,
-  },
-  moduloSinAlimentacion: false,
-
-  logEventos: [],
+let data = {
+  org: baymetOrgDefaults(),
+  fundadores:[ blankFundador(), blankFundador(), blankFundador() ],
+  junta:{ presidenteIdx:0, vicepresidenteIdx:null, secretarioIdx:1, tesoreroIdx:2, fiscalIdx:null, vocalIdxs:[], periodoAnios:'3' },
+  constitucion:{ fecha:'', hora:'', presAdhocIdx:0, secAdhocIdx:1, nombreElegido:'' },
+  estatuto: baymetEstatutoDefaults(),
+  plan:{ periodo:'', actividades:[ blankActividad() ] },
+  aprobacion:{ fecha:'', hora:'' },
+  solicitud:{ fecha:'', direccionRegional:'', funcionario:'' },
 };
 
-// Tabla educativa simplificada de ampacidad por calibre AWG (valores de
-// referencia general, NO sustituyen una tabla certificada de código eléctrico)
-const TABLA_CALIBRES = {
-  "14": { mm2: 2.5, ampacidad: 15 },
-  "12": { mm2: 4.0, ampacidad: 20 },
-  "10": { mm2: 6.0, ampacidad: 30 },
-  "8":  { mm2: 10.0, ampacidad: 40 },
-  "6":  { mm2: 16.0, ampacidad: 55 },
-  "4":  { mm2: 25.0, ampacidad: 70 },
-};
+function blankFundador(){ return { nombre:'', cedula:'', direccion:'', telefono:'', genero:'', cargo:'' }; }
+function blankActividad(cuatrimestre){ return { actividad:'', objetivo:'', fecha:'', responsable:'', cuatrimestre: cuatrimestre||1 }; }
 
-const BASE_AMPERAJE = 18.0;
-const AMPERAJE_OPERACION_CONTINUA = 34.0;   // punto de trabajo cuando el pistón está en producción
-const MARGEN_MODO_ASISTIDO = 0.90;          // % del umbral de disparo en el que se activa la pausa preventiva
-
-let contextoAudio = null; // se crea al primer clic del usuario (los navegadores lo exigen)
-
-// ---------------------------------------------------------------------------
-// 2) REGISTRO DE EVENTOS (Historial Log) con hora exacta
-// ---------------------------------------------------------------------------
-function registrarEvento(mensaje){
-  const marca = new Date().toLocaleTimeString("es-PA", { hour12:false });
-  estado.logEventos.push(`[${marca}] ${mensaje}`);
-  if (estado.logEventos.length > 500) estado.logEventos.shift();
-  redibujarLog();
-}
-
-// ---------------------------------------------------------------------------
-// 3) SONIDO DE ALARMA (Web Audio API, sin archivos externos)
-// ---------------------------------------------------------------------------
-function reproducirBeepAlarma(){
-  if (!estado.sonidoActivado) return;
-  try{
-    if (!contextoAudio) contextoAudio = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = contextoAudio.createOscillator();
-    const ganancia = contextoAudio.createGain();
-    osc.type = "square";
-    osc.frequency.value = 880;
-    ganancia.gain.value = 0.08;
-    osc.connect(ganancia);
-    ganancia.connect(contextoAudio.destination);
-    osc.start();
-    osc.stop(contextoAudio.currentTime + 0.18);
-  } catch(e){ /* si el navegador bloquea audio, simplemente no suena */ }
-}
-
-let intervaloSonidoAlarma = null;
-function gestionarSonidoAlarma(){
-  // Si el cable DO-4 (baliza/bocina) está desconectado, la alarma puede estar
-  // activa en el software pero NO se avisa físicamente en campo. Es una falla
-  // de cableado real: la lógica funciona, pero nadie se entera.
-  const debeSonar = estado.alarmaActiva && estado.cables.do4;
-  if (debeSonar && !intervaloSonidoAlarma){
-    reproducirBeepAlarma();
-    intervaloSonidoAlarma = setInterval(reproducirBeepAlarma, 900);
-  } else if (!debeSonar && intervaloSonidoAlarma){
-    clearInterval(intervaloSonidoAlarma);
-    intervaloSonidoAlarma = null;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 4) SECUENCIA NEUMÁTICA DE EMERGENCIA
-// ---------------------------------------------------------------------------
-function ejecutarSecuenciaNeumatica(){
-  return new Promise(function(resolver){
-    estado.enSecuenciaNeumatica = true;
-
-    // El pistón A solo se mueve DE VERDAD si su cable de salida (DO-2) tiene
-    // continuidad. Si está desconectado, el sistema lo "comanda" pero nada
-    // pasa físicamente - una falla de cableado clásica y peligrosa.
-    if (estado.cables.do2){
-      estado.pistonAExpandido = true;
-      registrarEvento("Pistón A ACTIVADO (Liberar Presión) - liberando el atascamiento");
-    } else {
-      registrarEvento("¡ADVERTENCIA! DO-2 desconectado: se comandó el Pistón A pero no se movió físicamente (sin continuidad)");
-    }
-    redibujarInterfaz();
-
-    setTimeout(function(){
-      if (estado.cables.do3){
-        estado.pistonBExpandido = true;
-        registrarEvento("Pistón B ACTIVADO (Limpieza de Material) - expulsando material atascado");
-      } else {
-        registrarEvento("¡ADVERTENCIA! DO-3 desconectado: se comandó el Pistón B pero no se movió físicamente (sin continuidad)");
-      }
-      redibujarInterfaz();
-
-      setTimeout(function(){
-        estado.pistonAExpandido = false;
-        estado.pistonBExpandido = false;
-        estado.enSecuenciaNeumatica = false;
-        registrarEvento("Ambos pistones contraídos automáticamente");
-
-        // Confirmación de posición: si DI-2/DI-3 están desconectados, el
-        // controlador nunca recibe la confirmación real de que el pistón
-        // volvió a su sitio, aunque físicamente sí lo haya hecho.
-        if (!estado.cables.di2 || !estado.cables.di3){
-          registrarEvento(
-            "¡ADVERTENCIA! No se pudo confirmar por sensor la posición de los pistones " +
-            "(DI-2/DI-3 sin continuidad) - el reinicio automático continuará SIN esa confirmación real"
-          );
-        }
-
-        redibujarInterfaz();
-        resolver();
-      }, 2000);
-
-    }, 2000);
-  });
-}
-
-// ---------------------------------------------------------------------------
-// 5) REPORTES DE FALLAS: creación con causa sugerida + exportación
-// ---------------------------------------------------------------------------
-function sugerirCausaFalla(datosDisparo){
-  // Heurística simple pero explicable: usa el contexto disponible en el
-  // momento del disparo para sugerir una causa razonable. El operador
-  // siempre puede corregirla manualmente después.
-  if (datosDisparo.forzadoPorEntrenamiento){
-    return "Prueba / entrenamiento interno (botón de simulación activado)";
-  }
-  if (datosDisparo.duranteOperacionContinua && !datosDisparo.modoAsistidoActivo){
-    return "Operación continua sin Modo Asistido - posible sobrecarga por ritmo de producción";
-  }
-  if (datosDisparo.amperajePico > estado.amperajeDisparo * 1.3){
-    return "Subida abrupta de corriente - posible atascamiento mecánico o falla del equipo";
-  }
-  return "Sobrecarga en operación normal - a revisar (posible causa externa / del cliente)";
-}
-
-function crearReporteFalla(datosDisparo){
-  estado.contadorReportes += 1;
-  const causaSugerida = sugerirCausaFalla(datosDisparo);
-  const reporte = {
-    id: estado.contadorReportes,
-    horaInicio: new Date().toLocaleString("es-PA"),
-    amperajePico: datosDisparo.amperajePico,
-    umbralConfigurado: estado.amperajeDisparo,
-    retardoConfigurado: estado.retardoSeg,
-    origen: datosDisparo.forzadoPorEntrenamiento ? "Simulación de entrenamiento" : "Operación real simulada",
-    causaSugerida: causaSugerida,
-    causaFinal: "sugerida",  // "sugerida" | "cliente" | "equipo" | "entrenamiento" | "desconocida"
+function baymetOrgDefaults(){
+  return {
+    nombre:'BAYMET (Bayano Methane Tracking)',
+    siglas:'OBC',
+    provincia:'Panamá',
+    distrito:'Chepo',
+    corregimiento:'Cañita',
+    comunidad:'Loma Naranjo',
+    direccion:'Comunidad de Loma Naranjo, corregimiento de Cañita, distrito de Chepo, provincia de Panamá. (Pendiente precisar el punto exacto de reunión, ej. referencia visual del local.)',
+    ambito:'Principalmente la provincia de Panamá, con especial atención a la cuenca del Lago Bayano, pudiendo extender su ámbito de actuación a nivel nacional e internacional mediante alianzas, convenios o proyectos que contribuyan al cumplimiento de sus objetivos.',
+    objetivos:'a) Generar conocimiento científico sobre las emisiones de metano y otros gases de efecto invernadero en Panamá.\nb) Fortalecer las capacidades comunitarias para el monitoreo ambiental participativo.\nc) Desarrollar e implementar tecnologías de sensores y análisis de datos aplicadas al ambiente.\nd) Contribuir a la formulación de políticas públicas ambientales basadas en evidencia.\ne) Formar nuevas generaciones de investigadores y líderes ambientales.\nf) Promover el desarrollo integral de las comunidades de su área de influencia, con base en los pilares ambiental, social y educativo.\ng) Monitorear e investigar las emisiones de metano en el Lago Bayano mediante sensores y boyas flotantes con GPS.',
+    fines:'a) Contribuir al bienestar de la población mediante acciones ambientales, científicas, sociales y educativas.\nb) Promover una cultura de sostenibilidad, responsabilidad social y conciencia ambiental frente al cambio climático.\nc) Fortalecer las capacidades de niños, jóvenes y adultos en las comunidades vinculadas a la organización.\nd) Apoyar iniciativas comunitarias que impulsen el desarrollo local sostenible.',
+    actividades:'a) Diseño, instalación y operación de redes de sensores y estaciones de monitoreo ambiental.\nb) Recolección, procesamiento y análisis de datos científicos, y publicación de sus resultados.\nc) Desarrollo de talleres, capacitaciones, seminarios y campañas de educación ambiental y ciencia ciudadana.\nd) Organización de actividades comunitarias, educativas y de voluntariado.\ne) Establecimiento de alianzas con instituciones públicas, privadas y organismos nacionales e internacionales.\nf) Gestión y administración de fondos, donaciones y subvenciones destinados a sus fines.',
   };
-  estado.reportesFallas.unshift(reporte);
-  if (estado.reportesFallas.length > 100) estado.reportesFallas.pop();
-  registrarEvento(`Reporte de falla #${reporte.id} generado automáticamente. Causa sugerida: ${causaSugerida}`);
-  document.getElementById("banner-reporte-listo").style.display = "block";
-  redibujarTablaReportes();
+}
+function baymetEstatutoDefaults(){
+  return {
+    modalidad:'Podrán ser asociados las personas naturales o jurídicas que compartan los objetivos de la organización y soliciten su ingreso, previa aprobación de la Junta Directiva o la Asamblea General. Se pierde la condición de asociado por renuncia voluntaria, incumplimiento del Estatuto, actos que perjudiquen a la organización, o decisión fundamentada de la Asamblea General o la Junta Directiva.',
+    derechos:'a) Participar con voz y voto en las Asambleas Generales.\nb) Elegir y ser elegidos para cargos directivos.\nc) Proponer iniciativas y proyectos.\nd) Recibir información sobre la gestión de la organización.',
+    deberes:'a) Cumplir el Estatuto y los acuerdos válidamente adoptados.\nb) Participar activamente en las actividades.\nc) Contribuir al logro de los objetivos institucionales.\nd) Mantener una conducta respetuosa y responsable.',
+    convocatoria:'Las Asambleas Generales serán convocadas por el Presidente o la Junta Directiva, mediante aviso escrito, digital o cualquier medio verificable, con al menos cinco (5) días hábiles de anticipación, indicando fecha, hora, lugar y agenda. También podrán convocarse a solicitud de al menos un tercio (1/3) de los asociados. El quórum de Asamblea es la mitad más uno de los asociados; de no lograrse, en segunda convocatoria será válida con los presentes. La Junta Directiva se reunirá de forma ordinaria al menos cada tres (3) meses, con quórum de la mitad más uno de sus miembros.',
+    periodoJunta:'3',
+    reeleccion:'Se permite la reelección por un único período adicional consecutivo, previa aprobación de la Asamblea General.',
+    modificacion:'El Estatuto podrá ser reformado por la Asamblea General Extraordinaria mediante mayoría calificada (dos tercios de los asociados presentes).',
+    patrimonio:'El patrimonio estará constituido por bienes muebles e inmuebles, aportes, donaciones, subvenciones, equipos de monitoreo y bases de datos científicas, y cualquier otro ingreso lícito. Los recursos se utilizarán exclusivamente para el cumplimiento de los objetivos y no podrán distribuirse entre los miembros.',
+    disolucion:'La organización podrá disolverse por decisión de la Asamblea General mediante mayoría calificada (dos tercios de los asociados presentes) o por causas legales. En caso de imposibilidad de continuar operando, la Asamblea General tomará las medidas necesarias para su cierre ordenado.',
+    destinoBienes:'En caso de disolución, los bienes serán destinados a otra organización sin fines de lucro con fines similares, según lo determine la Asamblea General.',
+  };
+}
+function cargarDatosBaymet(){
+  data.org = baymetOrgDefaults();
+  data.estatuto = baymetEstatutoDefaults();
+  data.junta.periodoAnios = '3';
+  saveData();
+  renderAll();
+  showToast('Datos de BAYMET cargados');
 }
 
-const ETIQUETAS_CAUSA = {
-  sugerida: "(usar la causa sugerida)",
-  cliente: "Sobrecarga por el cliente / carga externa",
-  equipo: "Falla del equipo (responsabilidad del contratista)",
-  entrenamiento: "Prueba o entrenamiento (sin impacto real)",
-  desconocida: "Causa desconocida / a investigar",
-};
+let currentStep = 0;
+let media = { firmas:{}, cedulas:{} }; // media.firmas[idx] / media.cedulas[idx] = dataURL (base64)
 
-function redibujarTablaReportes(){
-  const contenedor = document.getElementById("contenedor-tabla-reportes");
-  if (estado.reportesFallas.length === 0){
-    contenedor.innerHTML = '<div class="sin-reportes">Todavía no se ha generado ningún reporte. Provoca una falla (o usa el botón de simulación) para ver uno aquí.</div>';
-    return;
+/* ============ PERSISTENCIA ============ */
+async function storageGet(key){
+  if(window.storage && typeof window.storage.get === 'function'){
+    try{ const res = await window.storage.get(key, false); if(res && res.value != null) return res.value; }
+    catch(e){ /* seguimos con localStorage */ }
   }
-
-  let filas = "";
-  estado.reportesFallas.forEach(function(r){
-    filas += `
-      <tr>
-        <td>#${r.id}</td>
-        <td>${r.horaInicio}</td>
-        <td>${r.amperajePico.toFixed(1)} A<br><span class="etiqueta-causa-sugerida">límite: ${r.umbralConfigurado.toFixed(1)} A</span></td>
-        <td>${r.origen}</td>
-        <td>
-          <select data-reporte-id="${r.id}" class="selector-causa">
-            <option value="sugerida" ${r.causaFinal === "sugerida" ? "selected" : ""}>${ETIQUETAS_CAUSA.sugerida}</option>
-            <option value="cliente" ${r.causaFinal === "cliente" ? "selected" : ""}>${ETIQUETAS_CAUSA.cliente}</option>
-            <option value="equipo" ${r.causaFinal === "equipo" ? "selected" : ""}>${ETIQUETAS_CAUSA.equipo}</option>
-            <option value="entrenamiento" ${r.causaFinal === "entrenamiento" ? "selected" : ""}>${ETIQUETAS_CAUSA.entrenamiento}</option>
-            <option value="desconocida" ${r.causaFinal === "desconocida" ? "selected" : ""}>${ETIQUETAS_CAUSA.desconocida}</option>
-          </select>
-          <span class="etiqueta-causa-sugerida">Sugerida: ${r.causaSugerida}</span>
-        </td>
-      </tr>`;
-  });
-
-  contenedor.innerHTML = `
-    <table id="tabla-reportes">
-      <thead>
-        <tr><th>#</th><th>Fecha y hora</th><th>Amperaje</th><th>Origen</th><th>Causa (corrígela si hace falta)</th></tr>
-      </thead>
-      <tbody>${filas}</tbody>
-    </table>`;
-
-  // Vuelve a enlazar los selectores recién creados con su evento de cambio
-  document.querySelectorAll(".selector-causa").forEach(function(select){
-    select.addEventListener("change", function(){
-      const id = parseInt(select.dataset.reporteId, 10);
-      const reporte = estado.reportesFallas.find(function(r){ return r.id === id; });
-      if (reporte){
-        reporte.causaFinal = select.value;
-        registrarEvento(`Reporte #${id}: causa corregida manualmente a "${ETIQUETAS_CAUSA[select.value]}"`);
-      }
-    });
+  try{ return localStorage.getItem(key); }catch(e){ return null; }
+}
+async function storageSet(key, value){
+  if(window.storage && typeof window.storage.set === 'function'){
+    try{ await window.storage.set(key, value, false); return true; }
+    catch(e){ /* seguimos con localStorage */ }
+  }
+  try{ localStorage.setItem(key, value); return true; }catch(e){ return false; }
+}
+async function loadData(){
+  try{
+    const val = await storageGet('obc-expediente');
+    if(val){ data = Object.assign(data, JSON.parse(val)); }
+  }catch(e){ /* no hay datos guardados aún */ }
+  try{
+    const valMedia = await storageGet('obc-media');
+    if(valMedia){ media = Object.assign(media, JSON.parse(valMedia)); }
+  }catch(e){ /* no hay medios guardados aún */ }
+}
+let saveTimer=null;
+function saveData(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    const ok = await storageSet('obc-expediente', JSON.stringify(data));
+    if(!ok) console.error('No se pudo guardar');
+  }, 350);
+}
+let saveMediaTimer=null;
+function saveMedia(){
+  clearTimeout(saveMediaTimer);
+  saveMediaTimer = setTimeout(async ()=>{
+    const ok = await storageSet('obc-media', JSON.stringify(media));
+    if(!ok) showToast('No se pudo guardar la imagen — prueba con una foto más pequeña');
+  }, 350);
+}
+function resizeImageFile(file, maxDim, quality){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = ()=>reject(new Error('No se pudo leer el archivo'));
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=>reject(new Error('No se pudo leer la imagen'));
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h * maxDim/w); w = maxDim; }
+        else if(h > maxDim){ w = Math.round(w * maxDim/h); h = maxDim; }
+        const canvas = document.createElement('canvas'); canvas.width=w; canvas.height=h;
+        const ctx = canvas.getContext('2d'); ctx.drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   });
 }
 
-function textoCausaEfectiva(reporte){
-  return reporte.causaFinal === "sugerida" ? reporte.causaSugerida : ETIQUETAS_CAUSA[reporte.causaFinal];
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
 }
 
-function generarTextoReporteCompleto(){
-  let texto = "REPORTE DE FALLAS - ENTORNO DE ENTRENAMIENTO DSE\n";
-  texto += "Generado: " + new Date().toLocaleString("es-PA") + "\n";
-  texto += "==================================================\n\n";
-  estado.reportesFallas.forEach(function(r){
-    texto += `Reporte #${r.id}\n`;
-    texto += `  Fecha/hora: ${r.horaInicio}\n`;
-    texto += `  Amperaje pico: ${r.amperajePico.toFixed(1)} A (límite configurado: ${r.umbralConfigurado.toFixed(1)} A)\n`;
-    texto += `  Origen: ${r.origen}\n`;
-    texto += `  Causa: ${textoCausaEfectiva(r)}\n\n`;
+/* ============ COMPLETITUD (para sellos en el stepper) ============ */
+function isDone(stepId){
+  const o = data.org, f = data.fundadores, j = data.junta, c = data.constitucion, e = data.estatuto, p = data.plan, a = data.aprobacion, s = data.solicitud;
+  switch(stepId){
+    case 'inicio': return true;
+    case 'org': return !!(o.nombre && o.siglas && o.distrito && o.corregimiento && o.comunidad && o.direccion && o.ambito && o.objetivos && o.fines && o.actividades);
+    case 'fundadores': return f.length>=3 && f.every(x=>x.nombre && x.cedula);
+    case 'junta': return isDone('fundadores') && j.presidenteIdx!==j.secretarioIdx && j.secretarioIdx!==j.tesoreroIdx && j.presidenteIdx!==j.tesoreroIdx;
+    case 'constitucion': return isDone('junta') && !!(c.fecha && c.hora);
+    case 'estatuto': return isDone('org') && !!(e.modalidad && e.derechos && e.deberes && e.convocatoria && e.periodoJunta && e.reeleccion && e.modificacion && e.patrimonio && e.disolucion && e.destinoBienes);
+    case 'plan': return !!(p.periodo && p.actividades.length && p.actividades.every(x=>x.actividad));
+    case 'aprobacion': return !!(a.fecha && a.hora);
+    case 'solicitud': return !!(s.fecha && s.direccionRegional && s.funcionario);
+    case 'expediente': return true;
+    default: return false;
+  }
+}
+
+/* ============ RENDER STEPPER ============ */
+function renderStepper(){
+  const ul = document.getElementById('stepsList');
+  ul.innerHTML = '';
+  STEPS.forEach((st, i)=>{
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i===currentStep ? ' active':'') + (isDone(st.id) ? ' done':'');
+    btn.innerHTML = `<span class="step-num">${isDone(st.id) && i!==currentStep ? '✓' : i}</span><span>${st.label}</span>`;
+    btn.onclick = ()=>{ currentStep=i; renderAll(); window.scrollTo(0,0); };
+    li.appendChild(btn);
+    ul.appendChild(li);
   });
-  return texto;
 }
 
-function descargarArchivo(nombre, contenido, tipoMime){
-  const blob = new Blob([contenido], { type: tipoMime });
+/* ============ HELPERS UI ============ */
+function field(labelTxt, value, onInput, opts={}){
+  const wrap = document.createElement('div'); wrap.className='field';
+  const lab = document.createElement('label'); lab.textContent = labelTxt; wrap.appendChild(lab);
+  let input;
+  if(opts.textarea){ input = document.createElement('textarea'); if(opts.rows) input.rows = opts.rows; }
+  else { input = document.createElement('input'); input.type = opts.type || 'text'; }
+  input.value = value || '';
+  input.placeholder = opts.placeholder || '';
+  input.addEventListener('input', (ev)=>{ onInput(ev.target.value); saveData(); refreshStepperOnly(); });
+  input.addEventListener('change', ()=>{ renderAll(); });
+  // Para inputs de fecha/hora, el navegador dispara "change" apenas se elige
+  // un valor completo (sin esperar a que el campo pierda el foco), así que
+  // la vista previa se actualiza de inmediato también en esos casos.
+  wrap.appendChild(input);
+  if(opts.hint){ const h=document.createElement('div'); h.className='hint'; h.textContent=opts.hint; wrap.appendChild(h); }
+  return wrap;
+}
+function selectField(labelTxt, value, options, onChange){
+  const wrap = document.createElement('div'); wrap.className='field';
+  const lab = document.createElement('label'); lab.textContent = labelTxt; wrap.appendChild(lab);
+  const sel = document.createElement('select');
+  options.forEach(opt=>{
+    const o = document.createElement('option'); o.value = opt.value; o.textContent = opt.label;
+    if(opt.value === value) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', (ev)=>{ onChange(ev.target.value); saveData(); renderAll(); });
+  wrap.appendChild(sel);
+  return wrap;
+}
+function refreshStepperOnly(){ renderStepper(); }
+
+/* ===== Junta Directiva a partir del cargo que cada fundador marca en su propia tarjeta ===== */
+const CARGOS_UNICOS = ['presidente','vicepresidente','secretario','tesorero','fiscal'];
+function cargosDuplicados(){
+  const conteo = {};
+  CARGOS_UNICOS.forEach(c=>conteo[c]=[]);
+  data.fundadores.forEach((f,i)=>{ if(f.cargo && CARGOS_UNICOS.includes(f.cargo)) conteo[f.cargo].push(i); });
+  const dup = {};
+  Object.keys(conteo).forEach(c=>{ if(conteo[c].length > 1) dup[c] = conteo[c]; });
+  const vocales = data.fundadores.map((f,i)=>f.cargo==='vocal'?i:null).filter(i=>i!==null);
+  if(vocales.length > 3) dup['vocal'] = vocales;
+  return dup;
+}
+function recalcularJuntaDesdeCargos(){
+  const dup = cargosDuplicados();
+  const primero = (cargo)=>{ const idx = data.fundadores.findIndex(f=>f.cargo===cargo); return idx; };
+  if(!dup.presidente){ const i = primero('presidente'); if(i !== -1){ data.junta.presidenteIdx = i; data.constitucion.presAdhocIdx = i; } }
+  if(!dup.vicepresidente){ const i = primero('vicepresidente'); if(i !== -1) data.junta.vicepresidenteIdx = i; }
+  if(!dup.secretario){ const i = primero('secretario'); if(i !== -1){ data.junta.secretarioIdx = i; data.constitucion.secAdhocIdx = i; } }
+  if(!dup.tesorero){ const i = primero('tesorero'); if(i !== -1) data.junta.tesoreroIdx = i; }
+  if(!dup.fiscal){ const i = primero('fiscal'); if(i !== -1) data.junta.fiscalIdx = i; }
+  if(!dup.vocal){
+    const vocales = data.fundadores.map((f,i)=>f.cargo==='vocal'?i:null).filter(i=>i!==null);
+    if(vocales.length) data.junta.vocalIdxs = vocales.slice(0,3);
+  }
+}
+
+/* ===== Firma digital (canvas) y foto de cédula ===== */
+function signaturePadWidget(idx){
+  const wrap = document.createElement('div'); wrap.className='field';
+  const lab = document.createElement('label'); lab.textContent = 'Firma digital (opcional — dibuja con el mouse o el dedo)'; wrap.appendChild(lab);
+  const canvasWrap = document.createElement('div');
+  canvasWrap.style.cssText = 'border:1px solid var(--line); border-radius:4px; background:#fff; touch-action:none;';
+  const canvas = document.createElement('canvas'); canvas.width=400; canvas.height=120; canvas.style.cssText='width:100%; height:120px; display:block; cursor:crosshair;';
+  canvasWrap.appendChild(canvas);
+  wrap.appendChild(canvasWrap);
+
+  const ctx = canvas.getContext('2d');
+  ctx.lineWidth = 2; ctx.lineCap='round'; ctx.strokeStyle = '#1a1a1a';
+  let drawing = false, hasDrawn = false;
+  const existing = media.firmas[idx];
+  if(existing){
+    const img = new Image(); img.onload = ()=>ctx.drawImage(img,0,0,canvas.width,canvas.height); img.src = existing;
+    hasDrawn = true;
+  }
+  function pos(ev){
+    const r = canvas.getBoundingClientRect();
+    const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+    const cy = (ev.touches ? ev.touches[0].clientY : ev.clientY) - r.top;
+    return { x: cx * (canvas.width/r.width), y: cy * (canvas.height/r.height) };
+  }
+  function start(ev){ drawing=true; hasDrawn=true; const p=pos(ev); ctx.beginPath(); ctx.moveTo(p.x,p.y); ev.preventDefault(); }
+  function move(ev){ if(!drawing) return; const p=pos(ev); ctx.lineTo(p.x,p.y); ctx.stroke(); ev.preventDefault(); }
+  function end(){ if(!drawing) return; drawing=false; media.firmas[idx] = canvas.toDataURL('image/png'); saveMedia(); }
+  canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchmove', move, {passive:false}); canvas.addEventListener('touchend', end);
+
+  const actions = document.createElement('div'); actions.className='row-actions'; actions.style.marginTop='6px';
+  const clearBtn = document.createElement('button'); clearBtn.className='btn ghost sm'; clearBtn.type='button'; clearBtn.textContent='Borrar firma';
+  clearBtn.onclick = ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); hasDrawn=false; delete media.firmas[idx]; saveMedia(); };
+  actions.appendChild(clearBtn);
+  wrap.appendChild(actions);
+
+  const orLine = document.createElement('div'); orLine.className='hint'; orLine.style.margin='10px 0 4px'; orLine.textContent = 'O, si no quiere dibujarla, sube una foto o imagen de su firma ya hecha:';
+  wrap.appendChild(orLine);
+  const fileInput = document.createElement('input'); fileInput.type='file'; fileInput.accept='image/*';
+  fileInput.addEventListener('change', async ()=>{
+    const file = fileInput.files[0]; if(!file) return;
+    try{
+      const dataUrl = await resizeImageFile(file, 500, 0.8);
+      media.firmas[idx] = dataUrl; saveMedia();
+      const img = new Image(); img.onload = ()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0,canvas.width,canvas.height); }; img.src = dataUrl;
+      showToast('Firma cargada desde imagen');
+    }catch(err){ showToast('No se pudo procesar la imagen'); }
+  });
+  wrap.appendChild(fileInput);
+
+  const hint = document.createElement('div'); hint.className='hint'; hint.textContent = 'Se usará al generar el Acta de Constitución en Word. Si prefieres, deja esto en blanco y firma a mano sobre el documento impreso.';
+  wrap.appendChild(hint);
+  return wrap;
+}
+
+function cedulaPhotoWidget(idx){
+  const wrap = document.createElement('div'); wrap.className='field';
+  const lab = document.createElement('label'); lab.textContent = 'Foto de cédula (opcional — frente)'; wrap.appendChild(lab);
+  const preview = document.createElement('div');
+  preview.style.cssText = 'border:1px solid var(--line); border-radius:4px; background:#fff; min-height:70px; display:flex; align-items:center; justify-content:center; overflow:hidden; margin-bottom:8px;';
+  function renderPreview(){
+    preview.innerHTML='';
+    const url = media.cedulas[idx];
+    if(url){ const img = document.createElement('img'); img.src=url; img.style.cssText='max-width:100%; max-height:140px; display:block;'; preview.appendChild(img); }
+    else { const span = document.createElement('span'); span.className='hint'; span.textContent='Sin foto adjunta'; preview.appendChild(span); }
+  }
+  renderPreview();
+  wrap.appendChild(preview);
+  const input = document.createElement('input'); input.type='file'; input.accept='image/*'; input.capture='environment';
+  input.addEventListener('change', async ()=>{
+    const file = input.files[0]; if(!file) return;
+    try{
+      const dataUrl = await resizeImageFile(file, 900, 0.7);
+      media.cedulas[idx] = dataUrl; saveMedia(); renderPreview();
+      showToast('Foto de cédula guardada');
+    }catch(err){ showToast('No se pudo procesar la imagen'); }
+  });
+  wrap.appendChild(input);
+  const rm = document.createElement('button'); rm.className='btn ghost sm'; rm.type='button'; rm.textContent='Quitar foto'; rm.style.marginTop='6px';
+  rm.style.display = media.cedulas[idx] ? 'inline-block' : 'none';
+  rm.onclick = ()=>{ delete media.cedulas[idx]; saveMedia(); renderPreview(); rm.style.display='none'; };
+  wrap.appendChild(rm);
+  const origRenderPreview = renderPreview;
+  renderPreview = function(){ origRenderPreview(); rm.style.display = media.cedulas[idx] ? 'inline-block' : 'none'; };
+  return wrap;
+}
+
+function navButtons(container){
+  const nav = document.createElement('div'); nav.className='nav-buttons';
+  const prev = document.createElement('button'); prev.className='btn ghost'; prev.textContent='← Anterior';
+  prev.disabled = currentStep===0;
+  prev.onclick = ()=>{ currentStep=Math.max(0,currentStep-1); renderAll(); window.scrollTo(0,0); };
+  const next = document.createElement('button'); next.className='btn'; next.textContent = currentStep===STEPS.length-1 ? 'Ir al inicio' : 'Siguiente →';
+  next.onclick = ()=>{ currentStep = currentStep===STEPS.length-1 ? 0 : Math.min(STEPS.length-1,currentStep+1); renderAll(); window.scrollTo(0,0); };
+  nav.appendChild(prev); nav.appendChild(next);
+  container.appendChild(nav);
+}
+
+function downloadText(filename, content){
+  const blob = new Blob([content], {type:'text/plain;charset=utf-8'});
   const url = URL.createObjectURL(blob);
-  const enlace = document.createElement("a");
-  enlace.href = url;
-  enlace.download = nombre;
-  document.body.appendChild(enlace);
-  enlace.click();
-  document.body.removeChild(enlace);
+  const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
   URL.revokeObjectURL(url);
 }
+function copyText(content){
+  navigator.clipboard.writeText(content).then(()=>showToast('Copiado al portapapeles')).catch(()=>showToast('No se pudo copiar'));
+}
 
-document.getElementById("boton-exportar-txt").addEventListener("click", function(){
-  descargarArchivo("reporte_fallas.txt", generarTextoReporteCompleto(), "text/plain;charset=utf-8");
-  registrarEvento("Reporte de fallas exportado como TXT");
-});
+/* ============ EXPEDIENTE COMPLETO: descargar / importar todo en un solo archivo ============ */
+function descargarExpedienteCompletoJson(){
+  const payload = { data, media, exportadoEl: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const nombreBase = (data.org.siglas || data.org.nombre || 'OBC').replace(/[^A-Za-z0-9]+/g,'_');
+  const a = document.createElement('a'); a.href=url;
+  a.download = `Expediente_Completo_${nombreBase}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+async function importarExpedienteCompletoJson(file){
+  const text = await file.text();
+  const obj = JSON.parse(text);
+  if(!obj || !obj.data) throw new Error('Este archivo no es un expediente completo válido');
+  data = Object.assign(data, obj.data);
+  if(obj.media) media = Object.assign({ firmas:{}, cedulas:{} }, obj.media);
+  // saneamiento, igual que al iniciar la app
+  data.plan.actividades = data.plan.actividades && data.plan.actividades.length ? data.plan.actividades : [blankActividad()];
+  data.fundadores = data.fundadores && data.fundadores.length >= 3 ? data.fundadores : [blankFundador(), blankFundador(), blankFundador()];
+  recalcularJuntaDesdeCargos();
+  saveData(); saveMedia();
+}
 
-document.getElementById("boton-exportar-csv").addEventListener("click", function(){
-  let csv = "ID,Fecha y hora,Amperaje pico (A),Limite configurado (A),Origen,Causa\n";
-  estado.reportesFallas.forEach(function(r){
-    const fila = [
-      r.id,
-      `"${r.horaInicio}"`,
-      r.amperajePico.toFixed(1),
-      r.umbralConfigurado.toFixed(1),
-      `"${r.origen}"`,
-      `"${textoCausaEfectiva(r).replace(/"/g, '""')}"`,
-    ].join(",");
-    csv += fila + "\n";
+/* ============ EXPORTACIÓN A WORD (.docx real, con la librería docx.js) ============ */
+function isHeadingLine(line){
+  const t = line.trim();
+  if(!t) return false;
+  const letters = t.replace(/[^A-Za-zÁÉÍÓÚÑÜáéíóúñü]/g,'');
+  if(letters.length < 3) return false;
+  return t === t.toUpperCase() && /[A-ZÁÉÍÓÚÑ]/.test(t);
+}
+function isArticleLine(line){
+  return /^(Artículo|Capítulo|CAPITULO)\b/i.test(line.trim());
+}
+function waitForDocxLib(){
+  return new Promise((resolve)=>{
+    if(window.docx){ resolve(); return; }
+    const check = setInterval(()=>{ if(window.docx){ clearInterval(check); resolve(); } }, 150);
+    setTimeout(()=>{ clearInterval(check); resolve(); }, 10000);
   });
-  descargarArchivo("reporte_fallas.csv", csv, "text/csv;charset=utf-8");
-  registrarEvento("Reporte de fallas exportado como CSV");
-});
-
-document.getElementById("boton-enviar-correo").addEventListener("click", function(){
-  if (estado.reportesFallas.length === 0){
-    registrarEvento("No hay reportes para enviar todavía.");
-    return;
-  }
-  const ultimo = estado.reportesFallas[0];
-  const asunto = encodeURIComponent(`Reporte de falla #${ultimo.id} - ${ultimo.horaInicio}`);
-  const cuerpo = encodeURIComponent(
-    `Reporte de falla generado automáticamente:\n\n` +
-    `Fecha/hora: ${ultimo.horaInicio}\n` +
-    `Amperaje pico: ${ultimo.amperajePico.toFixed(1)} A (límite: ${ultimo.umbralConfigurado.toFixed(1)} A)\n` +
-    `Origen: ${ultimo.origen}\n` +
-    `Causa: ${textoCausaEfectiva(ultimo)}\n\n` +
-    `-- Enviado desde el Entorno de Entrenamiento DSE --`
-  );
-  window.location.href = `mailto:?subject=${asunto}&body=${cuerpo}`;
-  registrarEvento(`Se abrió el cliente de correo con el reporte #${ultimo.id} pre-redactado`);
-});
-
-// ---------------------------------------------------------------------------
-// 6) DISPARO POR SOBRECORRIENTE
-// ---------------------------------------------------------------------------
-async function ejecutarDisparo(){
-  const datosDisparo = {
-    amperajePico: estado.amperajeActual,
-    forzadoPorEntrenamiento: estado.forzarSobrecarga,
-    duranteOperacionContinua: estado.pistonOperando,
-    modoAsistidoActivo: estado.modoAsistido,
-  };
-
-  estado.motorBloqueado = true;    // esto es lo que el CONTROLADOR cree/comanda
-  estado.motorEnMarcha = false;
-  estado.alarmaActiva = true;
-  estado.estadoTexto = "¡ERROR: DISPARO POR SOBREAMPERAJE!";
-  registrarEvento(
-    `¡ERROR: DISPARO POR SOBREAMPERAJE! (${estado.amperajeActual.toFixed(1)} A > ` +
-    `${estado.amperajeDisparo.toFixed(1)} A durante más de ${estado.retardoSeg.toFixed(1)}s). Motor detenido.`
-  );
-
-  // Si el cable DO-1 (salida al contactor del motor) está desconectado, el
-  // comando de corte NUNCA llega al campo: el controlador "cree" que apagó
-  // el motor, pero en la realidad seguiría funcionando. Es de las fallas de
-  // cableado más peligrosas que existen.
-  if (!estado.cables.do1){
-    registrarEvento(
-      "¡PELIGRO! DO-1 desconectado: el comando de corte no llega al contactor. " +
-      "El motor real podría seguir funcionando pese a la alarma."
-    );
-  }
-
-  redibujarInterfaz();
-
-  crearReporteFalla(datosDisparo);
-
-  await ejecutarSecuenciaNeumatica();
-
-  if (estado.modoAutomaticoTotal){
-    estado.enEsperaRearranque = true;
-    registrarEvento("Modo Automático Total activo: esperando 3s antes de re-arrancar");
-    redibujarInterfaz();
-
-    setTimeout(function(){
-      if (estado.motorBloqueado){
-        rearmarSistema("re-arranque automático (Modo Automático Total)");
-      }
-      estado.enEsperaRearranque = false;
-      redibujarInterfaz();
-    }, 3000);
-  } else {
-    registrarEvento(
-      "Modo Automático Total DESACTIVADO: el sistema permanece en falla hasta " +
-      "presionar 'REINICIAR ALERTA (RESET)'"
-    );
-  }
 }
-
-function rearmarSistema(motivo){
-  estado.motorBloqueado = false;
-  estado.motorEnMarcha = true;
-  estado.alarmaActiva = false;
-  estado.estadoTexto = "SISTEMA OPERANDO";
-  estado.forzarSobrecarga = false;
-  estado.tiempoInicioSobrecarga = null;
-  registrarEvento(`Sistema rearmado: ${motivo}`);
+function dataUrlToUint8Array(dataUrl){
+  const base64 = dataUrl.split(',')[1];
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
 }
-
-// ---------------------------------------------------------------------------
-// 7) MODO ASISTIDO: pausa preventiva (automática o manual de un clic)
-// ---------------------------------------------------------------------------
-function ejecutarPausaPreventiva(motivo){
-  if (estado.pausaPreventivaEnCurso || estado.motorBloqueado || estado.enSecuenciaNeumatica) return;
-  estado.pausaPreventivaEnCurso = true;
-  estado.contadorCiclosPreventivos += 1;
-  registrarEvento(
-    `Ciclo preventivo automático #${estado.contadorCiclosPreventivos}: pausa corta (${motivo}) ` +
-    `- continuidad asistida, NO es una falla`
-  );
-  redibujarInterfaz();
-
-  setTimeout(function(){
-    estado.pausaPreventivaEnCurso = false;
-    registrarEvento("Ciclo preventivo finalizado - operación continua reanudada");
-    redibujarInterfaz();
-  }, 1400);
+function imageTypeFromDataUrl(dataUrl){
+  const m = dataUrl.match(/^data:image\/(png|jpeg|jpg|gif|bmp);/i);
+  const t = m ? m[1].toLowerCase() : 'png';
+  return t === 'jpg' ? 'jpeg' : t;
 }
-
-// ---------------------------------------------------------------------------
-// 8) TICK PRINCIPAL DEL SIMULADOR (cada 150ms)
-// ---------------------------------------------------------------------------
-let disparoEnCurso = false;
-
-function tick(){
-  if (disparoEnCurso) return;
-
-  // --- A0) Si falta alimentación (B+ o GND desconectados), el módulo está apagado ---
-  estado.moduloSinAlimentacion = !estado.cables.bPlus || !estado.cables.gnd;
-  if (estado.moduloSinAlimentacion){
-    estado.estadoTexto = "MÓDULO SIN ALIMENTACIÓN";
-    estado.amperajeActual = 0;
-    estado.alarmaActiva = false;   // sin alimentación, ni la alarma puede sonar
-    redibujarInterfaz();
-    return; // nada más funciona sin alimentación de control
-  }
-
-  // --- A) Generación de la CORRIENTE REAL (lo que de verdad pasa por el cable) ---
-  let nuevo;
-  if (estado.motorBloqueado){
-    nuevo = Math.max(0, estado.amperajeReal - (3.5 + Math.random()*3.0));
-  } else if (estado.pausaPreventivaEnCurso){
-    nuevo = Math.max(BASE_AMPERAJE * 0.5, estado.amperajeReal - (4.0 + Math.random()*2.0));
-  } else if (estado.forzarSobrecarga){
-    const objetivo = estado.amperajeDisparo + (12.0 + Math.random()*10.0);
-    nuevo = estado.amperajeReal + (objetivo - estado.amperajeReal) * 0.35 + (Math.random()*2 - 1);
-    nuevo = Math.max(0, nuevo);
-  } else if (estado.pistonOperando){
-    const variacion = (Math.random()*2.4 - 1.2);
-    const tendencia = (AMPERAJE_OPERACION_CONTINUA - estado.amperajeReal) * 0.06;
-    nuevo = Math.max(0, estado.amperajeReal + variacion + tendencia);
-  } else {
-    const variacion = (Math.random()*2.2 - 1.1);
-    const tendencia = (BASE_AMPERAJE - estado.amperajeReal) * 0.05;
-    nuevo = Math.max(0, estado.amperajeReal + variacion + tendencia);
-  }
-  estado.amperajeReal = Math.round(nuevo * 100) / 100;
-
-  // --- A1) LECTURA QUE VE EL CONTROLADOR: pasa por el cable DI-1 y por el CT ---
-  // Si el cable del sensor de corriente está desconectado, el controlador queda
-  // "ciego": ve 0.0 A pase lo que pase con la corriente real.
-  // Si está conectado, la lectura se escala según la relación de vueltas
-  // configurada en el software contra la relación realmente instalada. Cuando
-  // ambas coinciden, la lectura es exacta; cuando no, queda distorsionada.
-  if (!estado.cables.di1){
-    estado.amperajeActual = 0;
-  } else {
-    const factorCT = estado.relacionCTConfigurada / estado.relacionCTReal;
-    estado.amperajeActual = Math.round(estado.amperajeReal * factorCT * 100) / 100;
-  }
-
-  // --- A2) Calibre de cable: el riesgo depende de la CORRIENTE REAL, no de la lectura ---
-  const capacidad = TABLA_CALIBRES[estado.calibreCableMotor].ampacidad;
-  const enRiesgoAhora = estado.amperajeReal > capacidad;
-  if (enRiesgoAhora && !estado.cableMotorEnRiesgo){
-    registrarEvento(
-      `¡ADVERTENCIA FÍSICA! El cable calibre AWG ${estado.calibreCableMotor} ` +
-      `(máx. ${capacidad} A) va por debajo de la corriente real (${estado.amperajeReal.toFixed(1)} A). ` +
-      `Riesgo de sobrecalentamiento del conductor, sin importar lo que marque el controlador.`
-    );
-  } else if (!enRiesgoAhora && estado.cableMotorEnRiesgo){
-    registrarEvento("El cable de alimentación al motor volvió a un rango seguro de corriente.");
-  }
-  estado.cableMotorEnRiesgo = enRiesgoAhora;
-
-  // --- B) Modo Asistido: pausa preventiva automática cerca del límite ---
-  if (estado.modoAsistido && estado.pistonOperando && !estado.motorBloqueado
-      && !estado.pausaPreventivaEnCurso
-      && estado.amperajeActual >= estado.amperajeDisparo * MARGEN_MODO_ASISTIDO){
-    ejecutarPausaPreventiva("cerca del límite de disparo, modo automático");
-  }
-
-  // --- C) Lógica de protección por sobrecorriente (con retardo) ---
-  // OJO: esta lógica solo puede reaccionar a estado.amperajeActual (la LECTURA),
-  // nunca a estado.amperajeReal directamente - así funciona un controlador real:
-  // solo "sabe" lo que sus sensores le reportan.
-  let dispararAhora = false;
-  if (!estado.motorBloqueado){
-    if (estado.monitoreoHabilitado && estado.amperajeActual > estado.amperajeDisparo){
-      if (estado.tiempoInicioSobrecarga === null){
-        estado.tiempoInicioSobrecarga = Date.now();
-        estado.estadoTexto = "PREALARMA: AMPERAJE ELEVADO";
-        registrarEvento(
-          `Alerta: amperaje superó el punto de ajuste ` +
-          `(${estado.amperajeActual.toFixed(1)} A > ${estado.amperajeDisparo.toFixed(1)} A)`
-        );
-      }
-      const transcurridoSeg = (Date.now() - estado.tiempoInicioSobrecarga) / 1000;
-      dispararAhora = transcurridoSeg >= estado.retardoSeg;
-    } else {
-      if (estado.tiempoInicioSobrecarga !== null){
-        estado.tiempoInicioSobrecarga = null;
-        if (!estado.alarmaActiva) estado.estadoTexto = "SISTEMA OPERANDO";
-      }
+function textToDocxParagraphs(text){
+  const { Paragraph, TextRun, AlignmentType, BorderStyle } = docx;
+  const lines = text.split('\n');
+  const paras = [];
+  lines.forEach(raw=>{
+    const line = raw.replace(/\t/g,'    ');
+    if(!line.trim()){ paras.push(new Paragraph({ spacing:{after:120} })); return; }
+    if(/^-{5,}$|^={5,}$/.test(line.trim())){
+      paras.push(new Paragraph({ spacing:{after:100}, border:{ bottom:{ color:'999999', space:1, style:BorderStyle.SINGLE, size:4 } } }));
+      return;
     }
+    if(isHeadingLine(line)){
+      paras.push(new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:260, after:180}, children:[ new TextRun({text:line, bold:true, size:27}) ] }));
+      return;
+    }
+    if(isArticleLine(line)){
+      paras.push(new Paragraph({ spacing:{before:180, after:60}, children:[ new TextRun({text:line, bold:true}) ] }));
+      return;
+    }
+    paras.push(new Paragraph({ alignment:AlignmentType.JUSTIFIED, spacing:{after:140, line:280}, children:[ new TextRun({text:line}) ] }));
+  });
+  return paras;
+}
+function docxImageParagraph(dataUrl, widthPx, heightPx, placeholderText){
+  const { Paragraph, ImageRun, TextRun, AlignmentType } = docx;
+  if(!dataUrl){
+    return new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:100}, children:[ new TextRun({text: placeholderText || '', italics:true, size:17, color:'a3372b'}) ] });
   }
-
-  if (dispararAhora){
-    disparoEnCurso = true;
-    ejecutarDisparo().then(function(){ disparoEnCurso = false; });
+  try{
+    return new Paragraph({ alignment:AlignmentType.CENTER, spacing:{after:100}, children:[ new ImageRun({ type: imageTypeFromDataUrl(dataUrl), data: dataUrlToUint8Array(dataUrl), transformation:{width:widthPx, height:heightPx} }) ] });
+  }catch(e){
+    return new Paragraph({ alignment:AlignmentType.CENTER, children:[ new TextRun({text:'(no se pudo insertar la imagen)', italics:true, size:17}) ] });
   }
-
-  // --- D) Protecciones adicionales (voltaje, frecuencia, temperatura) ---
-  actualizarProteccionesAdicionales();
-
-  redibujarInterfaz();
+}
+function noBordersTable(rows){
+  const { Table, WidthType, BorderStyle } = docx;
+  const none = { style:BorderStyle.NONE, size:0, color:'FFFFFF' };
+  return new Table({ width:{size:100, type:WidthType.PERCENTAGE}, borders:{ top:none, bottom:none, left:none, right:none, insideHorizontal:none, insideVertical:none }, rows });
+}
+function headerCell(text){
+  const { TableCell, Paragraph, TextRun } = docx;
+  return new TableCell({ children:[ new Paragraph({ children:[ new TextRun({text, bold:true}) ] }) ] });
+}
+function textCell(text){
+  const { TableCell, Paragraph } = docx;
+  return new TableCell({ children:[ new Paragraph(String(text||'—')) ] });
+}
+async function buildAndDownloadDocx(filename, children){
+  await waitForDocxLib();
+  if(!window.docx){ showToast('No se pudo cargar el generador de Word — revisa tu conexión a internet e intenta de nuevo'); return; }
+  const { Document, Packer } = docx;
+  const doc = new Document({ sections:[{ properties:{ page:{ margin:{ top:1440, bottom:1440, left:1440, right:1440 } } }, children }] });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url;
+  a.download = filename.endsWith('.docx') ? filename : filename.replace(/\.(txt|doc)$/,'') + '.docx';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function wordBtn(label, filename, title, textFn){
+  const b = document.createElement('button'); b.className='btn sm'; b.textContent = label || 'Descargar Word (.docx)';
+  b.onclick = async ()=>{ await buildAndDownloadDocx(filename, textToDocxParagraphs(textFn())); };
+  return b;
+}
+function wordBtnDocx(label, filename, childrenFn){
+  const b = document.createElement('button'); b.className='btn sm'; b.textContent = label || 'Descargar Word (.docx)';
+  b.onclick = async ()=>{ await waitForDocxLib(); await buildAndDownloadDocx(filename, childrenFn()); };
+  return b;
 }
 
-// ---------------------------------------------------------------------------
-// 9) PROTECCIONES ADICIONALES (voltaje, frecuencia, temperatura)
-//    Igual que con el amperaje: se calcula un valor REAL, y lo que el
-//    controlador MUESTRA depende de si el cable del sensor está conectado.
-// ---------------------------------------------------------------------------
-function actualizarProteccionesAdicionales(){
-  const objetivoVoltaje = (estado.forzarSobrecarga || estado.motorBloqueado) ? 205 : 220;
-  estado.voltajeReal += (objetivoVoltaje - estado.voltajeReal) * 0.04 + (Math.random()*1.2 - 0.6);
-
-  estado.frecuenciaReal += (60.0 - estado.frecuenciaReal) * 0.08 + (Math.random()*0.15 - 0.075);
-
-  const objetivoTemp = estado.motorBloqueado ? 35 : (estado.pistonOperando || estado.forzarSobrecarga ? 78 : 45);
-  estado.temperaturaReal += (objetivoTemp - estado.temperaturaReal) * 0.01 + (Math.random()*0.4 - 0.2);
-
-  // Lecturas mostradas: 0 (sin señal) si el cable del sensor está desconectado
-  estado.voltaje = estado.cables.v1 ? estado.voltajeReal : 0;
-  estado.frecuencia = estado.cables.f1 ? estado.frecuenciaReal : 0;
-  estado.temperatura = estado.cables.t1 ? estado.temperaturaReal : 0;
+/* ============ GENERADORES DE DOCUMENTOS ============ */
+function fmtFecha(iso){
+  if(!iso) return '_____________';
+  const d = new Date(iso+'T00:00:00');
+  const meses=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  return `${d.getDate()} de ${meses[d.getMonth()]} de ${d.getFullYear()}`;
+}
+function nombreFundador(i){ const f=data.fundadores[i]; return f ? (f.nombre || `(fundador ${i+1} sin nombre)`) : '_____________'; }
+function cedulaFundador(i){ const f=data.fundadores[i]; return f ? (f.cedula || '_____________') : '_____________'; }
+function juntaCargosAsignados(){
+  const j = data.junta;
+  const roles = [
+    ['Presidente(a)', j.presidenteIdx],
+    ['Vicepresidente(a)', j.vicepresidenteIdx],
+    ['Secretario(a)', j.secretarioIdx],
+    ['Tesorero(a)', j.tesoreroIdx],
+    ['Fiscal', j.fiscalIdx],
+  ].filter(([_, idx]) => idx !== null && idx !== undefined);
+  (j.vocalIdxs||[]).forEach((idx, i)=>{ if(idx!=null && idx!==undefined) roles.push([`Vocal ${i+1}`, idx]); });
+  return roles;
 }
 
-// ---------------------------------------------------------------------------
-// 10) GRÁFICA HISTÓRICA (Canvas, sin librerías externas)
-// ---------------------------------------------------------------------------
-function registrarPuntoHistorial(){
-  estado.historialAmperaje.push({ t: Date.now(), a: estado.amperajeActual });
-  const LIMITE_PUNTOS = 120; // ~4 minutos de historial a 1 punto por segundo
-  if (estado.historialAmperaje.length > LIMITE_PUNTOS) estado.historialAmperaje.shift();
-  dibujarGrafica();
+function genNota(){
+  const s = data.solicitud, o = data.org;
+  return `Panamá; ${fmtFecha(s.fecha)}.
+
+${s.funcionario || 'Ingeniero(a) ____________________'}
+Ministerio de Ambiente
+Director(a) Regional de ${s.direccionRegional || '____________________'}
+En su despacho
+
+Respetado(a) Ingeniero(a):
+
+Reciba del nuevo grupo conformado en la comunidad de ${o.comunidad || '____________'} un cordial saludo, deseando lo mejor en sus funciones junto a sus colaboradores.
+
+Como Presidente(a) de la nueva organización creada en la comunidad de ${o.comunidad || '____________'}, corregimiento de ${o.corregimiento || '____________'}, distrito de ${o.distrito || '____________'}, hemos formado una Organización de Base Comunitaria denominada ${o.nombre || '____________'}, ${o.siglas || 'OBC'}. Por tal razón hacemos formal solicitud al Ministerio de Ambiente para obtener el reconocimiento y registro de nuestra organización, de acuerdo con el Decreto Ejecutivo N.º 32 de 28 de marzo de 2017, que reglamenta la personería jurídica de las OBC.
+
+Entregamos los siguientes documentos, conforme al Artículo 11 del citado Decreto:
+
+1. Nota de solicitud para la personería jurídica.
+2. Acta de Constitución de la organización y lista de asistencia.
+3. Lista de la Junta Directiva y direcciones de cada uno de sus miembros.
+4. Copia de cédulas de la Junta Directiva.
+5. Acta de aprobación del Estatuto y Plan de Trabajo.
+6. Estatuto.
+7. Plan de Trabajo ${data.plan.periodo || '____________'}.
+
+Agradeciendo de antemano la acogida de la misma, quedo de usted.
+
+Cordialmente,
+
+
+____________________________
+Presidente(a), ${o.nombre || '____________'}, ${o.siglas || 'OBC'}`;
 }
 
-function dibujarGrafica(){
-  const canvas = document.getElementById("grafica-amperaje");
-  const ctx = canvas.getContext("2d");
-  const ancho = canvas.width, alto = canvas.height;
-  ctx.clearRect(0, 0, ancho, alto);
+function genActaConstitucion(){
+  const o = data.org, c = data.constitucion, f = data.fundadores;
+  const mujeres = f.filter(x=>x.genero==='F').length;
+  const hombres = f.filter(x=>x.genero==='M').length;
+  return `ACTA DE CONSTITUCIÓN DE LA ORGANIZACIÓN
 
-  const estiloTexto = estado.temaOscuro ? "#a3aab3" : "#4b5058";
-  const estiloLinea = estado.temaOscuro ? "#3a4048" : "#dfe2e6";
+Hoy ${fmtFecha(c.fecha) || '_____________'}, en la comunidad de ${o.comunidad || '____________'}, corregimiento de ${o.corregimiento || '____________'}, distrito de ${o.distrito || '____________'}, provincia de ${o.provincia || 'Panamá'}, siendo las ${c.hora || '_____'}, se da inicio a la reunión con la finalidad de formalizar una organización con fines ambientales. Para tal efecto se da inicio con el siguiente orden del día.
 
-  // Ejes y líneas guía
-  ctx.strokeStyle = estiloLinea;
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++){
-    const y = 20 + (alto - 40) * (i/4);
-    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(ancho - 10, y); ctx.stroke();
-  }
+ORDEN DEL DÍA
+1. Quórum (lista de asistencia de los presentes).
+2. Nombramiento de Presidente y Secretario(a) Ad-hoc.
+3. Elección de la Junta Directiva de la organización.
+4. Asuntos varios.
 
-  const maximoEscala = Math.max(estado.amperajeDisparo * 1.4, 20);
-  ctx.fillStyle = estiloTexto;
-  ctx.font = "11px Consolas, monospace";
-  for (let i = 0; i <= 4; i++){
-    const valor = maximoEscala * (1 - i/4);
-    const y = 20 + (alto - 40) * (i/4);
-    ctx.fillText(valor.toFixed(0) + "A", 4, y + 4);
-  }
+DESARROLLO DEL ORDEN DEL DÍA
 
-  // Línea del umbral de disparo (referencia roja punteada)
-  const yUmbral = 20 + (alto - 40) * (1 - estado.amperajeDisparo / maximoEscala);
-  ctx.strokeStyle = "#c62828";
-  ctx.setLineDash([5, 4]);
-  ctx.beginPath(); ctx.moveTo(40, yUmbral); ctx.lineTo(ancho - 10, yUmbral); ctx.stroke();
-  ctx.setLineDash([]);
+Se verificó la asistencia de los presentes, habiendo ${f.length} personas, ${mujeres} mujeres y ${hombres} hombres, todos mayores de edad, quienes se constituyen en socios fundadores, cuyos nombres, números de cédula y firmas se anexan al final de la presente acta.
 
-  // Curva del historial de amperaje
-  if (estado.historialAmperaje.length > 1){
-    ctx.strokeStyle = "#1e5fa8";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    estado.historialAmperaje.forEach(function(punto, indice){
-      const x = 40 + (ancho - 50) * (indice / (estado.historialAmperaje.length - 1));
-      const y = 20 + (alto - 40) * (1 - Math.min(punto.a, maximoEscala) / maximoEscala);
-      if (indice === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+Se escogió al señor(a) ${nombreFundador(c.presAdhocIdx)}, con cédula de identidad personal ${cedulaFundador(c.presAdhocIdx)}, como Presidente(a) Ad-hoc, y al señor(a) ${nombreFundador(c.secAdhocIdx)}, con cédula de identidad personal ${cedulaFundador(c.secAdhocIdx)}, como Secretario(a) Ad-hoc, quienes presidieron la presente asamblea.
+
+Se procedió seguidamente a la elección de la Junta Directiva de la OBC para el periodo de ${data.junta.periodoAnios || '__'} años, por lo cual, unánimemente, los miembros hicieron postulaciones de común acuerdo para los cargos, tal como lo indica el Decreto Ejecutivo N.º 32 de 28 de marzo de 2017, Capítulo IV, Artículo 7.
+
+La Junta Directiva de la agrupación quedó constituida de la siguiente manera:
+
+${juntaCargosAsignados().map(([cargo,idx])=>`  ${cargo.padEnd(18)} ${nombreFundador(idx)}  (cédula ${cedulaFundador(idx)})`).join('\n')}
+
+Presentes los elegidos, aceptaron los cargos y se les tomó el juramento de rigor, quedando legalmente posesionados.
+
+Se procedió a elegir el nombre de la organización, quedando así:
+
+${o.nombre || '____________________________'}, ${o.siglas || 'OBC'}.
+
+No habiendo nada más que decir, se da por terminada la reunión a las ______________ del día ${fmtFecha(c.fecha)}.
+
+
+_______________________              _________________________
+Presidente(a) Ad hoc                  Secretario(a) Ad hoc`;
+}
+
+function genEstatuto(){
+  const o = data.org, e = data.estatuto;
+  return `ORGANIZACIÓN DE BASE COMUNITARIA (OBC)
+
+Nombre de la organización: ${o.nombre || '____________________'}, ${o.siglas || 'OBC'}
+
+ESTATUTO
+
+CAPÍTULO 1 — DISPOSICIONES GENERALES
+
+Artículo 1. Denominación y naturaleza de la asociación.
+Con la denominación ${o.nombre || '____________'}, ${o.siglas || 'OBC'}, se constituye en la provincia de ${o.provincia||'Panamá'}, distrito de ${o.distrito||'____________'}, corregimiento de ${o.corregimiento||'____________'}, en la comunidad de ${o.comunidad||'____________'}, una organización sin fines de lucro para promover valores ambientales, comunitarios y de desarrollo sostenible.
+
+Artículo 2. Personalidad y capacidad.
+La OBC constituida tiene personalidad jurídica y plena capacidad de obrar, pudiendo realizar todos los actos necesarios para el cumplimiento de su finalidad, con sujeción al ordenamiento jurídico vigente.
+
+Artículo 3. Domicilio de la asociación.
+El domicilio social de la OBC es: ${o.direccion || '____________________'}.
+
+Artículo 4. Ámbito de actuación.
+La OBC tendrá como ámbito territorial de acción: ${o.ambito || '____________________'}.
+
+Artículo 5. Duración de la OBC.
+La organización constituida tendrá tiempo indefinido.
+
+CAPÍTULO 2 — OBJETIVOS, FINES Y ACTIVIDADES
+
+Artículo 6. Objetivos.
+${o.objetivos || '____________________'}
+
+Artículo 7. Fines.
+${o.fines || '____________________'}
+
+Artículo 8. Actividades.
+${o.actividades || '____________________'}
+
+CAPÍTULO 3 — ÓRGANOS DE GOBIERNO Y ADMINISTRACIÓN
+
+Artículo 9. De la Asamblea General de Asociados.
+La Asamblea General es el máximo órgano de decisión y gobierno de la OBC, compuesta por la totalidad de los asociados en pleno uso de sus derechos. Adopta sus acuerdos por principio mayoritario y podrá reunirse de forma ordinaria o extraordinaria.
+
+Artículo 10. Legitimación para convocar asambleas.
+${e.convocatoria || '____________________'}
+
+Artículo 11. Modalidad de afiliación y desafiliación de los miembros.
+${e.modalidad || '____________________'}
+
+Artículo 12. Derechos de los miembros.
+${e.derechos || '____________________'}
+
+Artículo 13. Deberes de los miembros.
+${e.deberes || '____________________'}
+
+Artículo 14. De la Junta Directiva.
+La OBC contará con una Junta Directiva compuesta, al menos, por Presidente(a), Secretario(a) y Tesorero(a), que gestiona y representa los intereses de la organización de acuerdo con las directrices de la Asamblea General. El periodo de la Junta Directiva será de ${e.periodoJunta || '__'} años.
+
+Artículo 15. Reelección.
+${e.reeleccion || '____________________'}
+
+Artículo 16. Forma de modificación del estatuto.
+${e.modificacion || '____________________'}
+
+CAPÍTULO 4 — PATRIMONIO Y DISOLUCIÓN
+
+Artículo 17. Patrimonio.
+${e.patrimonio || '____________________'}
+
+Artículo 18. Procedimiento de disolución y liquidación.
+${e.disolucion || '____________________'}
+
+Artículo 19. Destino de los bienes en caso de disolución.
+${e.destinoBienes || '____________________'}`;
+}
+
+function genPlanTrabajo(){
+  const p = data.plan, o = data.org;
+  const MESES_CUATRI = { 1:'meses 1 a 4', 2:'meses 5 a 8', 3:'meses 9 a 12' };
+  const tablaCuatrimestre = (c)=>{
+    const items = p.actividades.filter(a=>(a.cuatrimestre||1)===c);
+    if(!items.length) return '(sin actividades programadas para este cuatrimestre)\n';
+    let t = 'ACTIVIDAD                     OBJETIVO                      FECHA APROX.  RESPONSABLE\n';
+    t += '-'.repeat(90) + '\n';
+    items.forEach(a=>{
+      t += `${(a.actividad||'—').padEnd(28)} ${(a.objetivo||'—').padEnd(28)} ${(a.fecha||'—').padEnd(13)} ${(a.responsable||'—')}\n`;
     });
-    ctx.stroke();
-  }
+    return t;
+  };
+  const bloques = [1,2,3].map(c=>`CUATRIMESTRE ${c} (${MESES_CUATRI[c]})\n${'-'.repeat(30)}\n${tablaCuatrimestre(c)}`).join('\n');
+  return `PLAN DE TRABAJO ${p.periodo || '____________'}
+${o.nombre || '____________'}, ${o.siglas || 'OBC'}
+
+Comunidad de ${o.comunidad||'____________'}, corregimiento de ${o.corregimiento||'____________'}, distrito de ${o.distrito||'____________'}.
+
+El presente Plan de Trabajo contempla el término de al menos un (1) año, dividido en tres (3) cuatrimestres de cuatro meses cada uno, conforme al Artículo 11, numeral 6, del Decreto Ejecutivo N.º 32 de 2017, y detalla las actividades a desarrollar para el cumplimiento de los objetivos y fines establecidos en el Estatuto de la organización.
+
+${bloques}
+Este plan será presentado ante el Área de Fomento de la Cultura Ambiental de la Dirección Regional del Ministerio de Ambiente correspondiente, junto con el informe anual de gestión, dentro de los noventa (90) días siguientes a la conclusión de cada año de gestión (Artículo 21 del Decreto).`;
 }
 
-// ---------------------------------------------------------------------------
-// 11) REDIBUJADO DE LA INTERFAZ
-// ---------------------------------------------------------------------------
-function redibujarInterfaz(){
-  const lcd = document.getElementById("pantalla-lcd");
+function genActaAprobacion(){
+  const a = data.aprobacion, o = data.org, p = data.plan;
+  return `REUNIÓN PARA LA DISCUSIÓN Y APROBACIÓN DEL ESTATUTO
+${o.nombre || '____________'}, ${o.siglas || 'OBC'}, Y PLAN DE TRABAJO DE LA OBC
 
-  if (estado.moduloSinAlimentacion){
-    document.getElementById("lcd-amperaje").textContent = "-- A";
-    document.getElementById("lcd-motor").textContent = "Motor: SIN DATOS";
-    document.getElementById("lcd-estado").textContent = "MÓDULO SIN ALIMENTACIÓN";
-    lcd.classList.remove("en-falla");
-    lcd.style.opacity = "0.35";
-    document.getElementById("led-alarma").className = "led";
-    document.getElementById("led-motor").className = "led";
-    document.getElementById("barra-nivel").style.width = "0%";
-    gestionarSonidoAlarma();
-    redibujarDiagramaCableado();
-    return;
-  }
-  lcd.style.opacity = "1";
+Hoy ${fmtFecha(a.fecha)}, en la comunidad de ${o.comunidad||'____________'}, corregimiento de ${o.corregimiento||'____________'}, distrito de ${o.distrito||'____________'}, provincia de ${o.provincia||'Panamá'}, siendo las ${a.hora||'_____'}, se da inicio a la reunión con la finalidad de aprobar el Estatuto que regirá a la OBC y el Plan de Trabajo para el periodo ${p.periodo || '____________'}.
 
-  document.getElementById("lcd-amperaje").textContent = estado.amperajeActual.toFixed(1) + " A";
-  document.getElementById("lcd-motor").textContent =
-    "Motor: " + (estado.motorEnMarcha ? "EN MARCHA" : "DETENIDO");
-  document.getElementById("lcd-estado").textContent = "ESTADO: " + estado.estadoTexto;
-  lcd.classList.toggle("en-falla", estado.alarmaActiva);
+ORDEN DEL DÍA
+1. Quórum (lista de asistencia de los presentes).
+2. Discusión y aprobación del Estatuto.
+3. Discusión y aprobación del Plan de Trabajo.
+4. Asuntos varios.
 
-  const umbralAmarillo = estado.amperajeDisparo * (35.0/45.0);
-  let colorBarra = "#1f9d55";
-  if (estado.amperajeActual > estado.amperajeDisparo) colorBarra = "#c62828";
-  else if (estado.amperajeActual > umbralAmarillo) colorBarra = "#c99a1e";
-  const proporcion = Math.min(Math.max(estado.amperajeActual / (estado.amperajeDisparo * 1.6), 0), 1);
-  const barra = document.getElementById("barra-nivel");
-  barra.style.width = (proporcion*100).toFixed(0) + "%";
-  barra.style.backgroundColor = colorBarra;
+DESARROLLO DEL ORDEN DEL DÍA
 
-  document.getElementById("led-alarma").className = "led" + (estado.alarmaActiva ? " on-rojo" : "");
-  document.getElementById("led-motor").className = "led" + (estado.motorEnMarcha ? " on-verde" : "");
-  document.getElementById("led-asistido").className = "led" +
-    (estado.pausaPreventivaEnCurso ? " on-amarillo" : (estado.modoAsistido ? " on-verde" : ""));
+Se verificó la asistencia de los presentes, existiendo quórum para llevar a cabo la discusión y aprobación del Estatuto y del Plan de Trabajo anual.
 
-  const botonReset = document.getElementById("boton-reset");
-  botonReset.style.display = (estado.motorBloqueado && !estado.modoAutomaticoTotal) ? "inline-block" : "none";
+Se procedió a discutir y aprobar cada artículo del presente Estatuto, y una vez finalizado, se discutió el Plan de Trabajo, siendo ambos aprobados por mayoría de los presentes.
 
-  document.getElementById("led-piston-a").className = "led" + (estado.pistonAExpandido ? " on-verde" : "");
-  document.getElementById("led-piston-b").className = "led" + (estado.pistonBExpandido ? " on-verde" : "");
-  const estadoA = document.getElementById("estado-piston-a");
-  const estadoB = document.getElementById("estado-piston-b");
-  estadoA.textContent = estado.pistonAExpandido ? "EXPANDIDO" : "RETRAÍDO";
-  estadoA.classList.toggle("expandido", estado.pistonAExpandido);
-  estadoB.textContent = estado.pistonBExpandido ? "EXPANDIDO" : "RETRAÍDO";
-  estadoB.classList.toggle("expandido", estado.pistonBExpandido);
+No habiendo nada más que discutir, se da por terminada la reunión a las ______________ del día ${fmtFecha(a.fecha)}.
 
-  const botonSobrecarga = document.getElementById("boton-sobrecarga");
-  botonSobrecarga.classList.toggle("activo", estado.forzarSobrecarga);
-  botonSobrecarga.innerHTML = estado.forzarSobrecarga
-    ? "&#9632; Detener Simulación de Sobrecarga"
-    : "&#9888; Simular Atascamiento / Sobrecarga";
 
-  const botonOperacion = document.getElementById("boton-operacion-continua");
-  botonOperacion.textContent = estado.pistonOperando
-    ? "\u25A0 Detener Operación Continua del Pistón"
-    : "\u25B6 Activar Operación Continua del Pistón";
-  botonOperacion.classList.toggle("boton-verde", !estado.pistonOperando);
-
-  document.getElementById("boton-ciclo-manual").disabled =
-    !estado.pistonOperando || estado.motorBloqueado || estado.pausaPreventivaEnCurso;
-
-  // Protecciones adicionales
-  actualizarTarjetaMedidor("valor-voltaje", estado.cables.v1 ? (estado.voltaje.toFixed(1) + " V") : "SIN SEÑAL",
-    !estado.cables.v1 || estado.voltaje < estado.voltajeMin || estado.voltaje > estado.voltajeMax);
-  actualizarTarjetaMedidor("valor-frecuencia", estado.cables.f1 ? (estado.frecuencia.toFixed(2) + " Hz") : "SIN SEÑAL",
-    !estado.cables.f1 || estado.frecuencia < 59.3 || estado.frecuencia > 60.7);
-  actualizarTarjetaMedidor("valor-temperatura", estado.cables.t1 ? (estado.temperatura.toFixed(1) + " \u00B0C") : "SIN SEÑAL",
-    !estado.cables.t1 || estado.temperatura > estado.temperaturaMax);
-
-  redibujarPanelCTyCalibre();
-  redibujarDiagramaCableado();
-  gestionarSonidoAlarma();
+_______________________              _________________________
+Presidente(a)                         Secretario(a)`;
 }
 
-function actualizarTarjetaMedidor(idElemento, texto, fueraDeRango){
-  const el = document.getElementById(idElemento);
-  el.textContent = texto;
-  el.style.color = fueraDeRango ? "var(--rojo-falla)" : "var(--texto-oscuro)";
+function genListadoAsistencia(titulo){
+  const o = data.org;
+  let filas = 'N°   NOMBRE                          CÉDULA              FIRMA\n' + '-'.repeat(70) + '\n';
+  data.fundadores.forEach((f,i)=>{ filas += `${String(i+1).padEnd(4)} ${(f.nombre||'—').padEnd(30)} ${(f.cedula||'—').padEnd(19)} ______________\n`; });
+  return `LISTA DE ASISTENCIA
+${titulo}
+Comunidad de: ${o.comunidad||'____________'}   Corregimiento de: ${o.corregimiento||'____________'}
+Fecha: ____________________
+
+${filas}`;
 }
 
-// ---------------------------------------------------------------------------
-// PANEL DEL TRANSFORMADOR DE CORRIENTE (CT) Y CALIBRE DE CABLE
-// ---------------------------------------------------------------------------
-function redibujarPanelCTyCalibre(){
-  const elReal = document.getElementById("valor-amperaje-real");
-  const elMostrado = document.getElementById("valor-amperaje-mostrado");
-  if (!elReal || !elMostrado) return; // la página aún no se ha construido/visitado
+function genListadoJunta(){
+  const o = data.org, f = data.fundadores, j = data.junta;
+  const filaJunta = (cargo, idx)=>{
+    const m = f[idx] || blankFundador();
+    return `${cargo.padEnd(18)} ${(m.nombre||'—').padEnd(26)} ${(m.cedula||'—').padEnd(16)} ${(m.direccion||'—').padEnd(24)} ${(m.telefono||'—')}`;
+  };
+  return `DIRECCIÓN DE LOS MIEMBROS DE LA JUNTA DIRECTIVA
+Comunidad de: ${o.comunidad||'____________'}, corregimiento de: ${o.corregimiento||'____________'}, distrito de: ${o.distrito||'____________'}.
 
-  elReal.textContent = estado.amperajeReal.toFixed(1) + " A";
-  elMostrado.textContent = estado.cables.di1 ? (estado.amperajeActual.toFixed(1) + " A") : "SIN SEÑAL (0.0 A)";
+CARGO              NOMBRE                     CÉDULA           DIRECCIÓN                TELÉFONO
+${'-'.repeat(95)}
+${juntaCargosAsignados().map(([cargo,idx])=>filaJunta(cargo, idx)).join('\n')}
 
-  const avisoCT = document.getElementById("aviso-ct-desajuste");
-  const desajustado = estado.cables.di1 && estado.relacionCTConfigurada !== estado.relacionCTReal;
-  avisoCT.style.display = (desajustado || !estado.cables.di1) ? "block" : "none";
-  if (!estado.cables.di1){
-    avisoCT.textContent = "⚠ El cable DI-1 está desconectado: el controlador no recibe ninguna lectura de corriente.";
-  } else if (desajustado){
-    const factor = (estado.relacionCTConfigurada / estado.relacionCTReal).toFixed(2);
-    avisoCT.textContent = `⚠ La relación configurada (${estado.relacionCTConfigurada}:5) no coincide con la ` +
-      `relación real instalada (${estado.relacionCTReal}:5). La lectura queda multiplicada por ${factor}× ` +
-      (factor > 1 ? "(lee de más - riesgo de disparos innecesarios)." : "(lee de menos - riesgo de NO disparar cuando debería)." );
-  }
-
-  // Cable del motor (L1)
-  const capacidadMotor = TABLA_CALIBRES[estado.calibreCableMotor].ampacidad;
-  const tarjetaMotor = document.getElementById("tarjeta-calibre-motor");
-  document.getElementById("texto-calibre-motor").textContent =
-    `AWG ${estado.calibreCableMotor} (${TABLA_CALIBRES[estado.calibreCableMotor].mm2} mm²) - máx. ${capacidadMotor} A`;
-  document.getElementById("texto-estado-calibre-motor").textContent =
-    estado.cableMotorEnRiesgo ? "⚠ EN RIESGO DE SOBRECALENTAMIENTO" : "✓ Dentro de un rango seguro";
-  tarjetaMotor.style.borderColor = estado.cableMotorEnRiesgo ? "var(--rojo-falla)" : "var(--gris-borde)";
-  document.getElementById("texto-estado-calibre-motor").style.color =
-    estado.cableMotorEnRiesgo ? "var(--rojo-falla)" : "var(--verde-ok)";
-
-  // Comparador L2 (línea configurada manualmente por el usuario)
-  const capacidadL2 = TABLA_CALIBRES[estado.comparadorL2Calibre].ampacidad;
-  const l2EnRiesgo = estado.comparadorL2Corriente > capacidadL2;
-  const tarjetaL2 = document.getElementById("tarjeta-calibre-l2");
-  document.getElementById("texto-calibre-l2").textContent =
-    `AWG ${estado.comparadorL2Calibre} (${TABLA_CALIBRES[estado.comparadorL2Calibre].mm2} mm²) - máx. ${capacidadL2} A, con ${estado.comparadorL2Corriente.toFixed(1)} A circulando`;
-  document.getElementById("texto-estado-calibre-l2").textContent =
-    l2EnRiesgo ? "⚠ EN RIESGO DE SOBRECALENTAMIENTO" : "✓ Dentro de un rango seguro";
-  tarjetaL2.style.borderColor = l2EnRiesgo ? "var(--rojo-falla)" : "var(--gris-borde)";
-  document.getElementById("texto-estado-calibre-l2").style.color =
-    l2EnRiesgo ? "var(--rojo-falla)" : "var(--verde-ok)";
+Nota: adjuntar copia de cédula (o carnet de residente) de cada miembro de la Junta Directiva, conforme al Artículo 11, numeral 5, del Decreto Ejecutivo N.º 32 de 2017.`;
 }
 
-// ---------------------------------------------------------------------------
-// DIAGRAMA DE CABLEADO INTERACTIVO: refleja el estado de cada cable
-// ---------------------------------------------------------------------------
-function redibujarDiagramaCableado(){
-  document.querySelectorAll(".cable-conexion").forEach(function(linea){
-    const clave = linea.dataset.cable;
-    const conectado = estado.cables[clave];
-    linea.setAttribute("stroke-dasharray", conectado ? "0" : "7,5");
-    linea.style.opacity = conectado ? "1" : "0.45";
-    linea.setAttribute("stroke", conectado ? linea.dataset.colorOriginal : "#9199a3");
+/* ===== Versiones Word (docx real) con firmas y fotos de cédula incrustadas ===== */
+function genActaConstitucionDocxChildren(){
+  const { Paragraph, Table, TableRow, TableCell, TextRun, WidthType, AlignmentType } = docx;
+  const c = data.constitucion, f = data.fundadores;
+  const bodyText = genActaConstitucion().replace(/\n_{5,}\s+_{5,}\nPresidente\(a\) Ad hoc\s+Secretario\(a\) Ad hoc/, '');
+  const children = textToDocxParagraphs(bodyText);
+
+  const sigCell = (idx, cargo)=> new TableCell({
+    width:{size:50, type:WidthType.PERCENTAGE},
+    children:[
+      docxImageParagraph(media.firmas[idx], 150, 45, ' '),
+      new Paragraph({ alignment:AlignmentType.CENTER, spacing:{before:60}, children:[new TextRun({text:'_______________________'})] }),
+      new Paragraph({ alignment:AlignmentType.CENTER, children:[new TextRun({text: nombreFundador(idx)})] }),
+      new Paragraph({ alignment:AlignmentType.CENTER, children:[new TextRun({text:cargo, size:19})] }),
+    ]
   });
-}
+  children.push(new Paragraph({ spacing:{before:200} }));
+  children.push(noBordersTable([ new TableRow({ children:[ sigCell(c.presAdhocIdx,'Presidente(a) Ad hoc'), sigCell(c.secAdhocIdx,'Secretario(a) Ad hoc') ] }) ]));
 
-function alternarCable(clave, descripcionFalla){
-  estado.cables[clave] = !estado.cables[clave];
-  if (!estado.cables[clave]){
-    registrarEvento(`Cable ${clave.toUpperCase()} DESCONECTADO (simulación) - ${descripcionFalla}`);
-  } else {
-    registrarEvento(`Cable ${clave.toUpperCase()} reconectado - continuidad restablecida`);
+  children.push(new Paragraph({ pageBreakBefore:true, alignment:AlignmentType.CENTER, spacing:{after:200}, children:[new TextRun({text:'ANEXO — LISTADO Y FIRMAS DE LOS MIEMBROS FUNDADORES', bold:true})] }));
+
+  const rows = [ new TableRow({ children:[ headerCell('N°'), headerCell('Nombre'), headerCell('Cédula'), headerCell('Firma') ] }) ];
+  f.forEach((m,i)=>{
+    rows.push(new TableRow({ children:[
+      textCell(i+1), textCell(m.nombre), textCell(m.cedula),
+      new TableCell({ children:[ docxImageParagraph(media.firmas[i], 110, 33, '') ] }),
+    ]}));
+  });
+  children.push(new Table({ width:{size:100, type:WidthType.PERCENTAGE}, rows }));
+  return children;
+}
+function genListadoJuntaDocxChildren(){
+  const { Paragraph, TableRow, TableCell, TextRun, WidthType, AlignmentType } = docx;
+  const children = textToDocxParagraphs(genListadoJunta());
+  const cargos = juntaCargosAsignados();
+  children.push(new Paragraph({ spacing:{before:220, after:160}, children:[new TextRun({text:'ANEXO — COPIAS DE CÉDULA DE LA JUNTA DIRECTIVA', bold:true})] }));
+  const celda = ([cargo, idx])=> new TableCell({
+    width:{size:33, type:WidthType.PERCENTAGE},
+    children:[
+      new Paragraph({alignment:AlignmentType.CENTER, children:[new TextRun({text:cargo, bold:true})]}),
+      new Paragraph({alignment:AlignmentType.CENTER, spacing:{after:100}, children:[new TextRun({text: nombreFundador(idx)})]}),
+      docxImageParagraph(media.cedulas[idx], 170, 110, '(sin foto de cédula adjunta)'),
+    ]
+  });
+  const filas = [];
+  for(let i=0; i<cargos.length; i+=3){
+    filas.push(new TableRow({ children: cargos.slice(i, i+3).map(celda) }));
   }
-  redibujarInterfaz();
+  if(filas.length) children.push(noBordersTable(filas));
+  return children;
+}
+function genListadoAsistenciaDocxChildren(titulo){
+  const { Paragraph, Table, TableRow, TableCell, TextRun, WidthType, AlignmentType } = docx;
+  const o = data.org;
+  const children = [
+    new Paragraph({alignment:AlignmentType.CENTER, spacing:{after:60}, children:[new TextRun({text:'LISTA DE ASISTENCIA', bold:true, size:27})]}),
+    new Paragraph({alignment:AlignmentType.CENTER, spacing:{after:180}, children:[new TextRun({text:titulo})]}),
+    new Paragraph({spacing:{after:40}, children:[new TextRun({text:`Comunidad de: ${o.comunidad||'____________'}    Corregimiento de: ${o.corregimiento||'____________'}`})]}),
+    new Paragraph({spacing:{after:200}, children:[new TextRun({text:'Fecha: ____________________'})]}),
+  ];
+  const rows = [ new TableRow({ children:[ headerCell('N°'), headerCell('Nombre'), headerCell('Cédula'), headerCell('Firma') ] }) ];
+  data.fundadores.forEach((f,i)=>{
+    rows.push(new TableRow({ children:[
+      textCell(i+1), textCell(f.nombre), textCell(f.cedula),
+      new TableCell({ children:[ docxImageParagraph(media.firmas[i], 110, 33, '') ] }),
+    ]}));
+  });
+  children.push(new Table({ width:{size:100, type:WidthType.PERCENTAGE}, rows }));
+  return children;
 }
 
-function redibujarLog(){
-  const caja = document.getElementById("caja-log");
-  caja.textContent = estado.logEventos.join("\n");
-  caja.scrollTop = caja.scrollHeight;
+/* ============ RENDER DE PASOS ============ */
+function renderAll(){
+  renderStepper();
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  const stepId = STEPS[currentStep].id;
+  const renderer = RENDERERS[stepId];
+  renderer(main);
 }
 
-// ---------------------------------------------------------------------------
-// 12) EVENTOS DE LA INTERFAZ
-// ---------------------------------------------------------------------------
+function docHead(main, eyebrow, title, lead){
+  const head = document.createElement('div'); head.className='doc-head';
+  const eb = document.createElement('span'); eb.className='eyebrow'; eb.textContent=eyebrow;
+  const h1 = document.createElement('h1'); h1.textContent = title;
+  const p = document.createElement('p'); p.className='lead'; p.textContent = lead;
+  head.appendChild(eb); head.appendChild(h1); head.appendChild(p);
+  main.appendChild(head);
+}
 
-// --- Navegación entre páginas ---
-document.querySelectorAll(".item-menu").forEach(function(boton){
-  boton.addEventListener("click", function(){
-    document.querySelectorAll(".item-menu").forEach(function(b){ b.classList.remove("activo"); });
-    document.querySelectorAll(".panel-pagina").forEach(function(p){ p.classList.remove("visible"); });
-    boton.classList.add("activo");
-    document.getElementById("pagina-" + boton.dataset.pagina).classList.add("visible");
-    if (boton.dataset.pagina === "reportes"){
-      document.getElementById("banner-reporte-listo").style.display = "none";
+const RENDERERS = {
+
+  inicio(main){
+    docHead(main, 'Paso 0 · Decreto Ejecutivo N.º 32 de 2017', 'Cómo constituir tu OBC', 'Esta guía te lleva por cada documento que exige el Ministerio de Ambiente para reconocer la personería jurídica de tu Organización de Base Comunitaria.');
+    const card = document.createElement('div'); card.className='card';
+    card.innerHTML = `
+      <h3>Qué es una OBC</h3>
+      <p style="line-height:1.6; font-size:14px;">Una Organización de Base Comunitaria (OBC) es una agrupación sin fines de lucro que representa y promueve valores e intereses de una comunidad, dedicada al desarrollo ambientalmente sostenible (Art. 2, Decreto 32 de 2017). El Ministerio de Ambiente es la entidad que reconoce y fiscaliza su personería jurídica.</p>
+      <h3 style="margin-top:22px;">Requisitos mínimos (Art. 8 y 9)</h3>
+      <ul class="checklist">
+        <li><span class="mark">•</span> Mínimo 3 miembros fundadores, mayores de 16 años.</li>
+        <li><span class="mark">•</span> Residentes permanentes de la comunidad.</li>
+        <li><span class="mark">•</span> Panameños o extranjeros con residencia legal en Panamá (para la Junta Directiva).</li>
+      </ul>
+      <h3 style="margin-top:22px;">Documentos que exige el Art. 11</h3>
+      <ol style="line-height:1.9; font-size:14px; padding-left:20px;">
+        <li>Nota de solicitud de personería jurídica.</li>
+        <li>Acta de Constitución + lista de asistencia.</li>
+        <li>Lista de la Junta Directiva y direcciones.</li>
+        <li>Copias de cédulas de la Junta Directiva.</li>
+        <li>Acta de aprobación del Estatuto y Plan de Trabajo.</li>
+        <li>Estatuto.</li>
+        <li>Plan de Trabajo (mínimo 1 año).</li>
+      </ol>
+      <div class="banner">La solicitud completa debe presentarse ante la Dirección Regional del Ministerio de Ambiente correspondiente al domicilio de la OBC, dentro de los 30 días calendario posteriores a la Asamblea de Constitución (Art. 10).</div>
+      <div class="banner warn">El Estatuto oficial de BAYMET define seis cargos en su Junta Directiva (Presidente, Vicepresidente, Secretario, Tesorero, Fiscal y hasta 3 Vocales). Este asistente solo modela los tres cargos mínimos que exige el Decreto (Presidente, Secretario, Tesorero); añade Vicepresidente, Fiscal y Vocales manualmente al Estatuto final si los necesitas.</div>
+    `;
+    main.appendChild(card);
+
+    const loadCard = document.createElement('div'); loadCard.className='card';
+    loadCard.innerHTML = '<h3>Datos de BAYMET</h3><p style="font-size:13.5px; color:var(--ink-soft); line-height:1.55;">Carga en este expediente los datos ya definidos en el Estatuto oficial de BAYMET (Bayano Methane Tracking): comunidad, ámbito, objetivos, fines, actividades y las reglas de la Asamblea y la Junta Directiva. Los fundadores, fechas de asamblea y Plan de Trabajo quedan pendientes de completar.</p>';
+    const loadBtn = document.createElement('button'); loadBtn.className='btn'; loadBtn.textContent='Cargar datos de BAYMET';
+    loadBtn.onclick = cargarDatosBaymet;
+    loadCard.appendChild(loadBtn);
+    main.appendChild(loadCard);
+
+    const importCard = document.createElement('div'); importCard.className='card';
+    importCard.innerHTML = '<h3>Abrir el expediente en otro dispositivo</h3><p style="font-size:13.5px; color:var(--ink-soft); line-height:1.55;">Si ya descargaste antes un archivo de "Expediente completo" (paso final), puedes subirlo aquí para que esta computadora o celular quede con exactamente los mismos datos, firmas y fotos que tenías guardados — sin volver a escribir nada.</p>';
+    const importInicioInput = document.createElement('input'); importInicioInput.type='file'; importInicioInput.accept='.json,application/json';
+    importInicioInput.addEventListener('change', async ()=>{
+      const file = importInicioInput.files[0]; if(!file) return;
+      try{
+        await importarExpedienteCompletoJson(file);
+        renderAll();
+        showToast('Expediente cargado en este dispositivo');
+      }catch(e){ showToast('No se pudo leer ese archivo'); }
+      importInicioInput.value = '';
+    });
+    importCard.appendChild(importInicioInput);
+    main.appendChild(importCard);
+    navButtons(main);
+  },
+
+  org(main){
+    docHead(main, 'Paso 1 · Art. 14', 'Datos de la organización', 'Esta información alimenta automáticamente el Estatuto, el Acta de Constitución y la Nota de solicitud.');
+    const card = document.createElement('div'); card.className='card';
+    const o = data.org;
+    const grid = document.createElement('div'); grid.className='grid cols-2';
+    grid.appendChild(field('Nombre de la organización', o.nombre, v=>o.nombre=v, {placeholder:'Ej. Amigos del Río Verde'}));
+    grid.appendChild(field('Siglas', o.siglas, v=>o.siglas=v, {placeholder:'OBC'}));
+    grid.appendChild(field('Provincia', o.provincia, v=>o.provincia=v));
+    grid.appendChild(field('Distrito', o.distrito, v=>o.distrito=v));
+    grid.appendChild(field('Corregimiento', o.corregimiento, v=>o.corregimiento=v));
+    grid.appendChild(field('Comunidad', o.comunidad, v=>o.comunidad=v));
+    card.appendChild(grid);
+    card.appendChild(field('Dirección exacta del domicilio (donde se harán las reuniones)', o.direccion, v=>o.direccion=v, {textarea:true, rows:2, hint:'Ej. tercera casa a la derecha después de la escuela, casa color amarilla, cerca del ciclón.'}));
+    card.appendChild(field('Ámbito territorial de actuación', o.ambito, v=>o.ambito=v, {textarea:true, rows:2, hint:'Dónde trabajará la organización: la comunidad, el corregimiento o el distrito completo.'}));
+    card.appendChild(field('Objetivos (Art. 6)', o.objetivos, v=>o.objetivos=v, {textarea:true, rows:4, hint:'Uno por línea, por ejemplo: participación ciudadana ambiental, reforestación, reducción de emisiones, etc.'}));
+    card.appendChild(field('Fines (Art. 7)', o.fines, v=>o.fines=v, {textarea:true, rows:3}));
+    card.appendChild(field('Actividades (Art. 8)', o.actividades, v=>o.actividades=v, {textarea:true, rows:4}));
+    main.appendChild(card);
+    navButtons(main);
+  },
+
+  fundadores(main){
+    docHead(main, 'Paso 2 · Art. 8 y 9', 'Miembros fundadores', 'Se requieren al menos 3 miembros fundadores, mayores de 16 años y residentes permanentes de la comunidad. Puedes dibujar la firma de cada uno y adjuntar la foto de su cédula — se incluirán en el Acta y en el Word final.');
+
+    const shareCard = document.createElement('div'); shareCard.className='card';
+    shareCard.innerHTML = `<h3>Cómo llenar entre varias personas</h3>
+      <p style="font-size:13.5px; color:var(--ink-soft); line-height:1.6;">Cada fundador(a) puede abrir esta misma página en su propio celular, llenar solo su tarjeta (nombre, cédula, firma y foto), y luego presionar <b>"Descargar mis datos"</b> en su tarjeta — eso genera un archivito pequeño (.json). Que te lo envíe por WhatsApp o correo, y tú lo importas aquí abajo para juntarlo todo en un solo expediente en tu computadora.</p>`;
+    const importRow = document.createElement('div'); importRow.className='row-actions'; importRow.style.marginTop='10px';
+    const importInput = document.createElement('input'); importInput.type='file'; importInput.accept='.json,application/json'; importInput.multiple = true;
+    importInput.addEventListener('change', async ()=>{
+      const files = Array.from(importInput.files || []);
+      let count = 0;
+      for(const file of files){
+        try{
+          const text = await file.text();
+          const obj = JSON.parse(text);
+          if(!obj || typeof obj !== 'object') continue;
+          let targetIdx = data.fundadores.findIndex(f => !f.nombre && !f.cedula);
+          if(targetIdx === -1){ data.fundadores.push(blankFundador()); targetIdx = data.fundadores.length - 1; }
+          data.fundadores[targetIdx] = {
+            nombre: obj.nombre || '', cedula: obj.cedula || '', direccion: obj.direccion || '',
+            telefono: obj.telefono || '', genero: obj.genero || '', cargo: obj.cargo || '',
+          };
+          if(obj.firma) media.firmas[targetIdx] = obj.firma;
+          if(obj.cedulaFoto) media.cedulas[targetIdx] = obj.cedulaFoto;
+          count++;
+        }catch(e){ /* archivo inválido, se ignora */ }
+      }
+      if(count){ recalcularJuntaDesdeCargos(); saveData(); saveMedia(); renderAll(); showToast(`${count} fundador(es) importado(s)`); }
+      else{ showToast('No se pudo leer el archivo'); }
+      importInput.value = '';
+    });
+    importRow.appendChild(importInput);
+    shareCard.appendChild(importRow);
+    main.appendChild(shareCard);
+
+    const card = document.createElement('div'); card.className='card';
+    if(data.fundadores.length < 3){
+      const b = document.createElement('div'); b.className='banner warn'; b.textContent = `Actualmente hay ${data.fundadores.length} fundador(es). El Decreto exige un mínimo de 3.`;
+      card.appendChild(b);
     }
-  });
-});
+    data.fundadores.forEach((f,i)=>{
+      const item = document.createElement('div'); item.className='repeat-item';
+      if(data.fundadores.length>3){
+        const rm = document.createElement('button'); rm.className='btn danger sm remove'; rm.textContent='Quitar';
+        rm.onclick = ()=>{ data.fundadores.splice(i,1); recalcularJuntaDesdeCargos(); saveData(); renderAll(); };
+        item.appendChild(rm);
+      }
+      const grid = document.createElement('div'); grid.className='grid cols-2';
+      grid.appendChild(field(`Nombre completo (fundador ${i+1})`, f.nombre, v=>f.nombre=v));
+      grid.appendChild(field('Cédula / carnet de residente', f.cedula, v=>f.cedula=v));
+      grid.appendChild(field('Dirección', f.direccion, v=>f.direccion=v));
+      grid.appendChild(field('Teléfono', f.telefono, v=>f.telefono=v));
+      item.appendChild(grid);
+      item.appendChild(selectField('Sexo (para el conteo del Acta de Constitución)', f.genero, [
+        {value:'', label:'Seleccionar…'}, {value:'F', label:'Mujer'}, {value:'M', label:'Hombre'}
+      ], v=>f.genero=v));
+      item.appendChild(selectField('¿Qué cargo tiene usted en la Junta Directiva?', f.cargo, [
+        {value:'', label:'Fundador(a) — sin cargo directivo'},
+        {value:'presidente', label:'Presidente(a)'},
+        {value:'vicepresidente', label:'Vicepresidente(a)'},
+        {value:'secretario', label:'Secretario(a)'},
+        {value:'tesorero', label:'Tesorero(a)'},
+        {value:'fiscal', label:'Fiscal'},
+        {value:'vocal', label:'Vocal'},
+      ], v=>{ f.cargo=v; recalcularJuntaDesdeCargos(); }));
+      const dup = cargosDuplicados();
+      const miDup = f.cargo && dup[f.cargo];
+      if(miDup){
+        const w = document.createElement('div'); w.className='banner warn'; w.style.margin='0 0 10px';
+        w.textContent = `Ojo: ${dup[f.cargo].length} personas marcaron "${f.cargo}" — hay que ponerse de acuerdo, porque no puede repetirse. Mientras tanto, ese cargo no se va a asignar solo.`;
+        item.appendChild(w);
+      }
+      const mediaGrid = document.createElement('div'); mediaGrid.className='grid cols-2'; mediaGrid.style.marginTop='10px';
+      mediaGrid.appendChild(signaturePadWidget(i));
+      mediaGrid.appendChild(cedulaPhotoWidget(i));
+      item.appendChild(mediaGrid);
+      const exportBtn = document.createElement('button'); exportBtn.className='btn ghost sm'; exportBtn.style.marginTop='10px'; exportBtn.textContent='📤 Descargar mis datos (para enviar)';
+      exportBtn.onclick = ()=>{
+        const payload = {
+          nombre: f.nombre||'', cedula: f.cedula||'', direccion: f.direccion||'', telefono: f.telefono||'', genero: f.genero||'', cargo: f.cargo||'',
+          firma: media.firmas[i] || null, cedulaFoto: media.cedulas[i] || null,
+        };
+        const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url;
+        a.download = `Fundador_${(f.nombre||'sin_nombre').replace(/[^A-Za-z0-9]+/g,'_')}.json`;
+        a.click(); URL.revokeObjectURL(url);
+      };
+      item.appendChild(exportBtn);
+      card.appendChild(item);
+    });
+    const addBtn = document.createElement('button'); addBtn.className='btn ghost sm'; addBtn.textContent='+ Añadir fundador(a)';
+    addBtn.onclick = ()=>{ data.fundadores.push(blankFundador()); saveData(); renderAll(); };
+    card.appendChild(addBtn);
+    main.appendChild(card);
+    navButtons(main);
+  },
 
-// --- Botón "Simular Atascamiento / Sobrecarga" ---
-document.getElementById("boton-sobrecarga").addEventListener("click", function(){
-  estado.forzarSobrecarga = !estado.forzarSobrecarga;
-  registrarEvento(
-    estado.forzarSobrecarga
-      ? "Simulación de atascamiento/sobrecarga ACTIVADA (modo entrenamiento)"
-      : "Simulación de atascamiento/sobrecarga DESACTIVADA"
-  );
-  redibujarInterfaz();
-});
+  junta(main){
+    docHead(main, 'Paso 3 · Art. 7', 'Junta Directiva', 'Se arma sola con el cargo que cada fundador(a) marcó en su propia tarjeta (paso anterior). Si nadie marcó un cargo todavía, o hay que corregir algo, puedes elegirlo aquí a mano.');
+    const card = document.createElement('div'); card.className='card';
+    const dup = cargosDuplicados();
+    if(Object.keys(dup).length){
+      const b = document.createElement('div'); b.className='banner warn';
+      b.textContent = 'Hay cargos marcados por más de una persona: ' + Object.entries(dup).map(([c,idxs])=>`${c} (${idxs.map(i=>data.fundadores[i].nombre||`fundador ${i+1}`).join(', ')})`).join('; ') + '. Corrígelo en el paso anterior — mientras tanto, esos cargos no se asignan solos y hay que elegirlos a mano abajo.';
+      card.appendChild(b);
+    } else {
+      const info = document.createElement('div'); info.className='banner';
+      info.textContent = 'Los combos de abajo ya reflejan lo que cada quien marcó en su tarjeta. Solo tienes que revisarlos y corregir a mano si hace falta.';
+      card.appendChild(info);
+    }
+    const opts = data.fundadores.map((f,i)=>({value:String(i), label: f.nombre || `Fundador(a) ${i+1}`}));
+    const optsConNinguno = [{value:'', label:'— Ninguno —'}, ...opts];
+    const j = data.junta;
+    card.appendChild(selectField('Presidente(a)', String(j.presidenteIdx), opts, v=>j.presidenteIdx=Number(v)));
+    card.appendChild(selectField('Vicepresidente(a)', j.vicepresidenteIdx==null?'':String(j.vicepresidenteIdx), optsConNinguno, v=>j.vicepresidenteIdx = v===''?null:Number(v)));
+    card.appendChild(selectField('Secretario(a)', String(j.secretarioIdx), opts, v=>j.secretarioIdx=Number(v)));
+    card.appendChild(selectField('Tesorero(a)', String(j.tesoreroIdx), opts, v=>j.tesoreroIdx=Number(v)));
+    card.appendChild(selectField('Fiscal', j.fiscalIdx==null?'':String(j.fiscalIdx), optsConNinguno, v=>j.fiscalIdx = v===''?null:Number(v)));
+    if(!Array.isArray(j.vocalIdxs)) j.vocalIdxs = [];
+    [0,1,2].forEach(pos=>{
+      card.appendChild(selectField(`Vocal ${pos+1}`, j.vocalIdxs[pos]==null?'':String(j.vocalIdxs[pos]), optsConNinguno, v=>{
+        j.vocalIdxs[pos] = v===''?null:Number(v);
+        j.vocalIdxs = j.vocalIdxs.filter(x=>x!=null);
+      }));
+    });
+    card.appendChild(field('Periodo de la Junta Directiva (años)', j.periodoAnios, v=>j.periodoAnios=v, {type:'number'}));
+    const asignados = [j.presidenteIdx, j.vicepresidenteIdx, j.secretarioIdx, j.tesoreroIdx, j.fiscalIdx, ...j.vocalIdxs].filter(x=>x!=null && x!==undefined);
+    const repetidos = asignados.some((x,i)=>asignados.indexOf(x)!==i);
+    if(repetidos){
+      const b = document.createElement('div'); b.className='banner warn'; b.textContent = 'Una misma persona no debería ocupar dos cargos a la vez — revisa los combos de arriba.';
+      card.appendChild(b);
+    }
+    main.appendChild(card);
+    navButtons(main);
+  },
 
-// --- Botón "Aplicar Parámetros" (sobrecorriente) ---
-document.getElementById("boton-aplicar").addEventListener("click", function(){
-  const nuevoUmbral = parseFloat(document.getElementById("input-umbral").value);
-  const nuevoRetardo = parseFloat(document.getElementById("input-retardo").value);
-  const etiqueta = document.getElementById("mensaje-confirmacion");
+  constitucion(main){
+    docHead(main, 'Paso 4 · Art. 11.2 y 12', 'Acta de Constitución', 'El Presidente(a) y Secretario(a) Ad-hoc se llenan solos con el cargo que cada quien marcó en "Miembros fundadores". Solo falta poner la fecha y la hora de la asamblea.');
+    const card = document.createElement('div'); card.className='card';
+    const c = data.constitucion;
+    const grid = document.createElement('div'); grid.className='grid cols-2';
+    grid.appendChild(field('Fecha de la Asamblea de Constitución', c.fecha, v=>c.fecha=v, {type:'date'}));
+    grid.appendChild(field('Hora de inicio', c.hora, v=>c.hora=v, {type:'time'}));
+    card.appendChild(grid);
 
-  if (isNaN(nuevoUmbral) || isNaN(nuevoRetardo)){
-    etiqueta.textContent = "Error: los campos numéricos deben ser válidos.";
-    etiqueta.style.color = "#c62828";
-    return;
-  }
+    const dup = cargosDuplicados();
+    const resumen = document.createElement('div'); resumen.className = dup.presidente||dup.secretario ? 'banner warn' : 'banner';
+    const nombrePres = nombreFundador(c.presAdhocIdx), nombreSec = nombreFundador(c.secAdhocIdx);
+    resumen.innerHTML = (dup.presidente||dup.secretario)
+      ? 'Hay un choque de cargos sin resolver en "Miembros fundadores" — corrígelo ahí para que el Presidente/Secretario Ad-hoc se llenen solos aquí.'
+      : `<b>Presidente(a) Ad-hoc:</b> ${nombrePres} &nbsp;·&nbsp; <b>Secretario(a) Ad-hoc:</b> ${nombreSec} &nbsp;·&nbsp; <b>Fecha:</b> ${c.fecha ? fmtFecha(c.fecha) : '(falta poner la fecha)'} &nbsp;·&nbsp; <b>Hora de inicio:</b> ${c.hora || '(falta poner la hora)'}`;
+    card.appendChild(resumen);
 
-  estado.monitoreoHabilitado = document.getElementById("chk-monitoreo").checked;
-  estado.amperajeDisparo = nuevoUmbral;
-  estado.retardoSeg = nuevoRetardo;
-  estado.modoAutomaticoTotal = document.getElementById("chk-modo-automatico").checked;
+    const opts = data.fundadores.map((f,i)=>({value:String(i), label: f.nombre || `Fundador(a) ${i+1}`}));
+    card.appendChild(selectField('Presidente(a) Ad-hoc (dirige la asamblea) — corrígelo aquí solo si hace falta', String(c.presAdhocIdx), opts, v=>c.presAdhocIdx=Number(v)));
+    card.appendChild(selectField('Secretario(a) Ad-hoc (redacta el acta) — corrígelo aquí solo si hace falta', String(c.secAdhocIdx), opts, v=>c.secAdhocIdx=Number(v)));
+    main.appendChild(card);
 
-  registrarEvento(
-    `Parámetros actualizados: disparo=${nuevoUmbral}A, retardo=${nuevoRetardo}s, ` +
-    `modo_automatico_total=${estado.modoAutomaticoTotal ? "ON" : "OFF"}`
-  );
+    const prevCard = document.createElement('div'); prevCard.className='card';
+    prevCard.innerHTML = '<h3>Vista previa del Acta <span class="req">Art. 11.2</span></h3>';
+    const pre = document.createElement('div'); pre.className='doc-preview'; pre.textContent = genActaConstitucion();
+    prevCard.appendChild(pre);
+    const actions = document.createElement('div'); actions.className='row-actions';
+    const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
+    dl.onclick = ()=>downloadText('Acta_de_Constitucion.txt', genActaConstitucion());
+    const cp = document.createElement('button'); cp.className='btn ghost sm'; cp.textContent='Copiar texto';
+    cp.onclick = ()=>copyText(genActaConstitucion());
+    actions.appendChild(dl); actions.appendChild(wordBtnDocx(null, 'Acta_de_Constitucion.docx', genActaConstitucionDocxChildren)); actions.appendChild(cp);
+    prevCard.appendChild(actions);
+    main.appendChild(prevCard);
 
-  etiqueta.textContent = "✓ Parámetros aplicados correctamente.";
-  etiqueta.style.color = "#1f9d55";
-});
+    const listCard = document.createElement('div'); listCard.className='card';
+    listCard.innerHTML = '<h3>Lista de asistencia adjunta <span class="req">Art. 11.2</span></h3>';
+    const pre2 = document.createElement('div'); pre2.className='doc-preview'; pre2.textContent = genListadoAsistencia('Formación de un grupo');
+    listCard.appendChild(pre2);
+    const row2 = document.createElement('div'); row2.className='row-actions'; row2.style.marginTop='10px';
+    const dl2 = document.createElement('button'); dl2.className='btn sm'; dl2.textContent='Descargar .txt';
+    dl2.onclick = ()=>downloadText('Listado_asistencia_constitucion.txt', genListadoAsistencia('Formación de un grupo'));
+    row2.appendChild(dl2);
+    row2.appendChild(wordBtnDocx(null, 'Listado_asistencia_constitucion.docx', ()=>genListadoAsistenciaDocxChildren('Formación de un grupo')));
+    listCard.appendChild(row2);
+    main.appendChild(listCard);
 
-// --- Botón "Aplicar Parámetros" (protecciones adicionales) ---
-document.getElementById("boton-aplicar-extra").addEventListener("click", function(){
-  const vMax = parseFloat(document.getElementById("input-voltaje-max").value);
-  const vMin = parseFloat(document.getElementById("input-voltaje-min").value);
-  const tMax = parseFloat(document.getElementById("input-temp-max").value);
-  const etiqueta = document.getElementById("mensaje-confirmacion-extra");
+    navButtons(main);
+  },
 
-  if (isNaN(vMax) || isNaN(vMin) || isNaN(tMax)){
-    etiqueta.textContent = "Error: los campos numéricos deben ser válidos.";
-    etiqueta.style.color = "#c62828";
-    return;
-  }
+  estatuto(main){
+    docHead(main, 'Paso 5 · Art. 11.3 y 14', 'Estatuto', 'El Art. 14 exige 13 contenidos mínimos. Los primeros ya están cubiertos con los datos de la organización; completa el resto aquí.');
+    const card = document.createElement('div'); card.className='card';
+    const e = data.estatuto;
+    card.appendChild(field('Modalidad de afiliación y desafiliación de miembros', e.modalidad, v=>e.modalidad=v, {textarea:true, rows:2}));
+    card.appendChild(field('Derechos de los miembros', e.derechos, v=>e.derechos=v, {textarea:true, rows:2}));
+    card.appendChild(field('Deberes de los miembros', e.deberes, v=>e.deberes=v, {textarea:true, rows:2}));
+    card.appendChild(field('Forma de convocatoria a Junta Directiva / quórum', e.convocatoria, v=>e.convocatoria=v, {textarea:true, rows:2}));
+    const grid = document.createElement('div'); grid.className='grid cols-2';
+    grid.appendChild(field('Periodo de la Junta Directiva (años)', e.periodoJunta, v=>e.periodoJunta=v, {type:'number'}));
+    grid.appendChild(field('Reelección', e.reeleccion, v=>e.reeleccion=v, {placeholder:'Ej. se permite por un periodo adicional'}));
+    card.appendChild(grid);
+    card.appendChild(field('Forma de modificación del estatuto', e.modificacion, v=>e.modificacion=v, {textarea:true, rows:2}));
+    card.appendChild(field('Patrimonio de la organización', e.patrimonio, v=>e.patrimonio=v, {textarea:true, rows:2}));
+    card.appendChild(field('Procedimiento de disolución y liquidación', e.disolucion, v=>e.disolucion=v, {textarea:true, rows:2}));
+    card.appendChild(field('Destino de los bienes en caso de disolución', e.destinoBienes, v=>e.destinoBienes=v, {textarea:true, rows:2, hint:'Si no se define, aplica el Art. 28: donar a instituciones benéficas o de fines similares.'}));
+    main.appendChild(card);
 
-  estado.voltajeMax = vMax;
-  estado.voltajeMin = vMin;
-  estado.temperaturaMax = tMax;
-  registrarEvento(`Protecciones adicionales actualizadas: V=[${vMin}-${vMax}]V, Temp máx=${tMax}°C`);
-  etiqueta.textContent = "✓ Parámetros aplicados correctamente.";
-  etiqueta.style.color = "#1f9d55";
-});
+    const prevCard = document.createElement('div'); prevCard.className='card';
+    prevCard.innerHTML = '<h3>Vista previa del Estatuto <span class="req">Art. 11.3</span></h3>';
+    const pre = document.createElement('div'); pre.className='doc-preview'; pre.textContent = genEstatuto();
+    prevCard.appendChild(pre);
+    const actions = document.createElement('div'); actions.className='row-actions';
+    const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
+    dl.onclick = ()=>downloadText('Estatuto.txt', genEstatuto());
+    const cp = document.createElement('button'); cp.className='btn ghost sm'; cp.textContent='Copiar texto';
+    cp.onclick = ()=>copyText(genEstatuto());
+    actions.appendChild(dl); actions.appendChild(wordBtn(null, 'Estatuto.docx', 'Estatuto', genEstatuto)); actions.appendChild(cp);
+    prevCard.appendChild(actions);
+    main.appendChild(prevCard);
 
-// --- Botón "REINICIAR ALERTA (RESET)" ---
-document.getElementById("boton-reset").addEventListener("click", function(){
-  if (!estado.motorBloqueado){
-    registrarEvento("Intento de RESET rechazado: el sistema no está en estado de falla.");
-    return;
-  }
-  if (estado.enSecuenciaNeumatica){
-    registrarEvento("Intento de RESET rechazado: espera a que termine la secuencia neumática.");
-    return;
-  }
-  rearmarSistema("RESET manual del operador");
-  redibujarInterfaz();
-});
+    navButtons(main);
+  },
 
-// --- Botón "Activar/Detener Operación Continua del Pistón" ---
-document.getElementById("boton-operacion-continua").addEventListener("click", function(){
-  estado.pistonOperando = !estado.pistonOperando;
-  registrarEvento(
-    estado.pistonOperando
-      ? "Operación continua del pistón ACTIVADA por el operador"
-      : "Operación continua del pistón DETENIDA por el operador"
-  );
-  redibujarInterfaz();
-});
+  plan(main){
+    docHead(main, 'Paso 6 · Art. 11.6', 'Plan de Trabajo', 'Debe contemplar el término de al menos un año, dividido en 3 cuatrimestres de 4 meses cada uno. Añade las actividades principales de tu OBC en el cuatrimestre que corresponda.');
+    const card = document.createElement('div'); card.className='card';
+    const p = data.plan;
+    card.appendChild(field('Periodo que cubre el plan', p.periodo, v=>p.periodo=v, {placeholder:'Ej. 2026 – 2027'}));
+    if(!p.actividades.every(a=>a.cuatrimestre)) p.actividades.forEach(a=>{ if(!a.cuatrimestre) a.cuatrimestre = 1; });
+    main.appendChild(card);
 
-// --- Checkbox "Modo Asistido" ---
-document.getElementById("chk-modo-asistido").addEventListener("change", function(e){
-  estado.modoAsistido = e.target.checked;
-  registrarEvento(`Modo Asistido de Pistón ${estado.modoAsistido ? "ACTIVADO" : "DESACTIVADO"}`);
-  redibujarInterfaz();
-});
+    const MESES_CUATRI = { 1:'meses 1 a 4', 2:'meses 5 a 8', 3:'meses 9 a 12' };
+    [1,2,3].forEach(cua=>{
+      const cuaCard = document.createElement('div'); cuaCard.className='card';
+      cuaCard.innerHTML = `<h3>Cuatrimestre ${cua} <span class="hint" style="display:inline;">(${MESES_CUATRI[cua]})</span></h3>`;
+      const items = p.actividades.map((a,i)=>({a,i})).filter(x=>x.a.cuatrimestre===cua);
+      if(!items.length){
+        const hint = document.createElement('div'); hint.className='hint'; hint.textContent = 'Sin actividades todavía en este cuatrimestre.';
+        cuaCard.appendChild(hint);
+      }
+      items.forEach(({a,i})=>{
+        const item = document.createElement('div'); item.className='repeat-item';
+        const rm = document.createElement('button'); rm.className='btn danger sm remove'; rm.textContent='Quitar';
+        rm.onclick = ()=>{ p.actividades.splice(i,1); if(!p.actividades.length) p.actividades.push(blankActividad(1)); saveData(); renderAll(); };
+        item.appendChild(rm);
+        const grid = document.createElement('div'); grid.className='grid cols-2';
+        grid.appendChild(field('Actividad', a.actividad, v=>a.actividad=v));
+        grid.appendChild(field('Objetivo relacionado', a.objetivo, v=>a.objetivo=v));
+        grid.appendChild(field('Fecha aproximada (opcional)', a.fecha, v=>a.fecha=v, {placeholder:'Ej. semana del 10 de marzo'}));
+        grid.appendChild(field('Responsable', a.responsable, v=>a.responsable=v));
+        item.appendChild(grid);
+        cuaCard.appendChild(item);
+      });
+      const addBtn = document.createElement('button'); addBtn.className='btn ghost sm'; addBtn.textContent=`+ Añadir actividad al Cuatrimestre ${cua}`;
+      addBtn.onclick = ()=>{ p.actividades.push(blankActividad(cua)); saveData(); renderAll(); };
+      cuaCard.appendChild(addBtn);
+      main.appendChild(cuaCard);
+    });
 
-// --- Botón "Ciclo Manual de Un Clic" ---
-document.getElementById("boton-ciclo-manual").addEventListener("click", function(){
-  ejecutarPausaPreventiva("solicitado manualmente por el operador (un clic)");
-});
+    const prevCard = document.createElement('div'); prevCard.className='card';
+    prevCard.innerHTML = '<h3>Vista previa del Plan de Trabajo <span class="req">Art. 11.6</span></h3>';
+    const pre = document.createElement('div'); pre.className='doc-preview'; pre.textContent = genPlanTrabajo();
+    prevCard.appendChild(pre);
+    const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
+    dl.onclick = ()=>downloadText('Plan_de_Trabajo.txt', genPlanTrabajo());
+    prevCard.appendChild(dl);
+    prevCard.appendChild(wordBtn(null, 'Plan_de_Trabajo.docx', 'Plan de Trabajo', genPlanTrabajo));
+    main.appendChild(prevCard);
 
-// --- Botón "Limpiar historial" ---
-document.getElementById("boton-limpiar-log").addEventListener("click", function(){
-  estado.logEventos = [];
-  registrarEvento("Historial de eventos limpiado por el operador");
-});
+    navButtons(main);
+  },
 
-// --- Cables interactivos del Diagrama de Cableado ---
-const DESCRIPCION_FALLA_CABLE = {
-  bPlus: "sin esta línea el módulo completo queda sin alimentación",
-  gnd:   "sin tierra/común el módulo completo queda sin alimentación",
-  di1:   "el controlador queda ciego ante la corriente real (no puede proteger contra sobrecarga)",
-  v1:    "la lectura de voltaje pasa a 0V (sin señal)",
-  f1:    "la lectura de frecuencia pasa a 0Hz (sin señal)",
-  t1:    "la lectura de temperatura pasa a 0°C (sin señal) - puede esconder un sobrecalentamiento real",
-  di2:   "se pierde la confirmación real de que el Pistón A volvió a su posición",
-  di3:   "se pierde la confirmación real de que el Pistón B volvió a su posición",
-  do1:   "el comando de corte del motor no llega al contactor - riesgo de que el motor real siga encendido",
-  do2:   "el Pistón A no se moverá físicamente aunque el sistema lo comande",
-  do3:   "el Pistón B no se moverá físicamente aunque el sistema lo comande",
-  do4:   "la alarma queda activa pero sin aviso sonoro/visual en campo",
+  aprobacion(main){
+    docHead(main, 'Paso 7 · Art. 11.5', 'Acta de aprobación del Estatuto y Plan de Trabajo', 'Reunión donde la Asamblea aprueba formalmente ambos documentos.');
+    const card = document.createElement('div'); card.className='card';
+    const a = data.aprobacion;
+    const grid = document.createElement('div'); grid.className='grid cols-2';
+    grid.appendChild(field('Fecha de la reunión', a.fecha, v=>a.fecha=v, {type:'date'}));
+    grid.appendChild(field('Hora de inicio', a.hora, v=>a.hora=v, {type:'time'}));
+    card.appendChild(grid);
+    main.appendChild(card);
+
+    const prevCard = document.createElement('div'); prevCard.className='card';
+    prevCard.innerHTML = '<h3>Vista previa del Acta <span class="req">Art. 11.5</span></h3>';
+    const pre = document.createElement('div'); pre.className='doc-preview'; pre.textContent = genActaAprobacion();
+    prevCard.appendChild(pre);
+    const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
+    dl.onclick = ()=>downloadText('Acta_aprobacion_estatuto_plan.txt', genActaAprobacion());
+    prevCard.appendChild(dl);
+    prevCard.appendChild(wordBtn(null, 'Acta_aprobacion_estatuto_plan.docx', 'Acta de aprobación', genActaAprobacion));
+    main.appendChild(prevCard);
+
+    const listCard = document.createElement('div'); listCard.className='card';
+    listCard.innerHTML = '<h3>Lista de asistencia adjunta</h3>';
+    const pre2 = document.createElement('div'); pre2.className='doc-preview'; pre2.textContent = genListadoAsistencia('Aprobación de Estatuto y Plan de Trabajo');
+    listCard.appendChild(pre2);
+    const row2 = document.createElement('div'); row2.className='row-actions'; row2.style.marginTop='10px';
+    const dl2 = document.createElement('button'); dl2.className='btn sm'; dl2.textContent='Descargar .txt';
+    dl2.onclick = ()=>downloadText('Listado_asistencia_aprobacion.txt', genListadoAsistencia('Aprobación de Estatuto y Plan de Trabajo'));
+    row2.appendChild(dl2);
+    row2.appendChild(wordBtnDocx(null, 'Listado_asistencia_aprobacion.docx', ()=>genListadoAsistenciaDocxChildren('Aprobación de Estatuto y Plan de Trabajo')));
+    listCard.appendChild(row2);
+    main.appendChild(listCard);
+
+    const juntaCard = document.createElement('div'); juntaCard.className='card';
+    juntaCard.innerHTML = '<h3>Lista de la Junta Directiva y direcciones <span class="req">Art. 11.4</span></h3>';
+    const pre3 = document.createElement('div'); pre3.className='doc-preview'; pre3.textContent = genListadoJunta();
+    juntaCard.appendChild(pre3);
+    const row3 = document.createElement('div'); row3.className='row-actions'; row3.style.marginTop='10px';
+    const dl3 = document.createElement('button'); dl3.className='btn sm'; dl3.textContent='Descargar .txt';
+    dl3.onclick = ()=>downloadText('Listado_Junta_Directiva.txt', genListadoJunta());
+    row3.appendChild(dl3);
+    row3.appendChild(wordBtnDocx(null, 'Listado_Junta_Directiva.docx', genListadoJuntaDocxChildren));
+    juntaCard.appendChild(row3);
+    main.appendChild(juntaCard);
+
+    navButtons(main);
+  },
+
+  solicitud(main){
+    docHead(main, 'Paso 8 · Art. 11.1', 'Nota de solicitud', 'Carta de presentación dirigida a la Dirección Regional del Ministerio de Ambiente correspondiente al domicilio de la OBC.');
+    const card = document.createElement('div'); card.className='card';
+    const s = data.solicitud;
+    const grid = document.createElement('div'); grid.className='grid cols-2';
+    grid.appendChild(field('Fecha de la nota', s.fecha, v=>s.fecha=v, {type:'date'}));
+    grid.appendChild(field('Dirección Regional del Ministerio de Ambiente', s.direccionRegional, v=>s.direccionRegional=v, {placeholder:'Ej. Panamá Este'}));
+    card.appendChild(grid);
+    card.appendChild(field('Nombre del funcionario(a) a quien se dirige', s.funcionario, v=>s.funcionario=v, {placeholder:'Ej. Ingeniera Aida Magaña'}));
+    main.appendChild(card);
+
+    const prevCard = document.createElement('div'); prevCard.className='card';
+    prevCard.innerHTML = '<h3>Vista previa de la Nota <span class="req">Art. 11.1</span></h3>';
+    const pre = document.createElement('div'); pre.className='doc-preview'; pre.textContent = genNota();
+    prevCard.appendChild(pre);
+    const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='Descargar .txt';
+    dl.onclick = ()=>downloadText('Nota_de_solicitud.txt', genNota());
+    prevCard.appendChild(dl);
+    prevCard.appendChild(wordBtn(null, 'Nota_de_solicitud.docx', 'Nota de solicitud', genNota));
+    main.appendChild(prevCard);
+
+    navButtons(main);
+  },
+
+  expediente(main){
+    docHead(main, 'Paso 9 · Cierre del expediente', 'Expediente final', 'Revisa que todo esté listo antes de presentarlo a la Dirección Regional del Ministerio de Ambiente.');
+
+    const checklistCard = document.createElement('div'); checklistCard.className='card';
+    checklistCard.innerHTML = '<h3>Checklist — Artículo 11</h3>';
+    const items = [
+      ['Nota de solicitud', 'solicitud'],
+      ['Acta de Constitución + lista de asistencia', 'constitucion'],
+      ['Lista de la Junta Directiva y direcciones', 'junta'],
+      ['Copias de cédulas de la Junta Directiva (fuera de esta app)', null],
+      ['Acta de aprobación del Estatuto y Plan de Trabajo + lista de asistencia', 'aprobacion'],
+      ['Estatuto', 'estatuto'],
+      ['Plan de Trabajo (mínimo 1 año)', 'plan'],
+    ];
+    const ul = document.createElement('ul'); ul.className='checklist';
+    items.forEach(([label, key])=>{
+      const li = document.createElement('li');
+      const done = key ? isDone(key) : false;
+      li.className = done ? 'done' : '';
+      li.innerHTML = `<span class="mark">${done?'✓':''}</span><span>${label}</span>`;
+      ul.appendChild(li);
+    });
+    checklistCard.appendChild(ul);
+    if(items.every(([l,k])=>!k || isDone(k))){
+      const s = document.createElement('div'); s.style.marginTop='16px';
+      s.innerHTML = '<span class="stamp ok">Expediente completo</span>';
+      checklistCard.appendChild(s);
+    } else {
+      const s = document.createElement('div'); s.style.marginTop='16px';
+      s.innerHTML = '<span class="stamp">Faltan datos por completar</span>';
+      checklistCard.appendChild(s);
+    }
+    main.appendChild(checklistCard);
+
+    const docsCard = document.createElement('div'); docsCard.className='card';
+    docsCard.innerHTML = '<h3>Descargar todos los documentos</h3>';
+    const docs = [
+      ['Nota de solicitud', genNota, 'Nota_de_solicitud.txt', null],
+      ['Acta de Constitución', genActaConstitucion, 'Acta_de_Constitucion.txt', genActaConstitucionDocxChildren],
+      ['Lista de asistencia — constitución', ()=>genListadoAsistencia('Formación de un grupo'), 'Listado_asistencia_constitucion.txt', ()=>genListadoAsistenciaDocxChildren('Formación de un grupo')],
+      ['Lista de la Junta Directiva', genListadoJunta, 'Listado_Junta_Directiva.txt', genListadoJuntaDocxChildren],
+      ['Estatuto', genEstatuto, 'Estatuto.txt', null],
+      ['Plan de Trabajo', genPlanTrabajo, 'Plan_de_Trabajo.txt', null],
+      ['Acta de aprobación de Estatuto y Plan', genActaAprobacion, 'Acta_aprobacion_estatuto_plan.txt', null],
+      ['Lista de asistencia — aprobación', ()=>genListadoAsistencia('Aprobación de Estatuto y Plan de Trabajo'), 'Listado_asistencia_aprobacion.txt', ()=>genListadoAsistenciaDocxChildren('Aprobación de Estatuto y Plan de Trabajo')],
+    ];
+    const summaryGrid = document.createElement('div'); summaryGrid.className='summary-grid';
+    docs.forEach(([label, gen, filename, docxGen])=>{
+      const box = document.createElement('div'); box.className='summary-doc';
+      box.innerHTML = `<h4>${label}</h4><div class="meta">${filename.replace('.txt','.docx')}</div>`;
+      const row = document.createElement('div'); row.className='row-actions';
+      const dl = document.createElement('button'); dl.className='btn sm'; dl.textContent='.txt';
+      dl.onclick = ()=>downloadText(filename, gen());
+      const wd = docxGen ? wordBtnDocx('Word (.docx)', filename, docxGen) : wordBtn('Word (.docx)', filename, label, gen);
+      const cp = document.createElement('button'); cp.className='btn ghost sm'; cp.textContent='Copiar';
+      cp.onclick = ()=>copyText(gen());
+      row.appendChild(dl); row.appendChild(wd); row.appendChild(cp);
+      box.appendChild(row);
+      summaryGrid.appendChild(box);
+    });
+    docsCard.appendChild(summaryGrid);
+
+    const nombreBase = (data.org.siglas||data.org.nombre||'OBC').replace(/[^A-Za-z0-9]+/g,'_');
+    const actionsFinal = document.createElement('div'); actionsFinal.className='row-actions'; actionsFinal.style.marginTop='20px';
+    const allBtn = document.createElement('button'); allBtn.className='btn ghost'; allBtn.textContent='Descargar todo en .txt (un solo archivo)';
+    allBtn.onclick = ()=>{
+      const full = docs.map(([label,gen])=>`${'='.repeat(70)}\n${label.toUpperCase()}\n${'='.repeat(70)}\n\n${gen()}\n\n`).join('\n');
+      downloadText(`Expediente_OBC_${nombreBase}.txt`, full);
+    };
+    const allWordBtn = document.createElement('button'); allWordBtn.className='btn'; allWordBtn.textContent='Descargar expediente completo en Word (.docx)';
+    allWordBtn.onclick = async ()=>{
+      await waitForDocxLib();
+      const { Paragraph, TextRun, AlignmentType } = docx;
+      let children = [];
+      docs.forEach(([label,gen,filename,docxGen], i)=>{
+        children.push(new Paragraph({ pageBreakBefore: i>0, alignment:AlignmentType.CENTER, spacing:{after:220}, children:[new TextRun({text:label.toUpperCase(), bold:true, size:30})] }));
+        children = children.concat(docxGen ? docxGen() : textToDocxParagraphs(gen()));
+      });
+      await buildAndDownloadDocx(`Expediente_OBC_${nombreBase}.docx`, children);
+    };
+    actionsFinal.appendChild(allWordBtn); actionsFinal.appendChild(allBtn);
+    docsCard.appendChild(actionsFinal);
+    main.appendChild(docsCard);
+
+    const backupCard = document.createElement('div'); backupCard.className='card';
+    backupCard.innerHTML = '<h3>Respaldo — descargar o volver a abrir</h3><p style="font-size:13.5px; color:var(--ink-soft); line-height:1.55;">Este archivo no es para imprimir ni entregar al Ministerio — es un respaldo de todo lo que llevas llenado (organización, fundadores, firmas, fotos, todo).</p>';
+    const backupBtn = document.createElement('button'); backupBtn.className='btn'; backupBtn.textContent='📦 Descargar expediente completo (.json)';
+    backupBtn.onclick = descargarExpedienteCompletoJson;
+    backupCard.appendChild(backupBtn);
+
+    const restoreWrap = document.createElement('div'); restoreWrap.style.marginTop='16px';
+    const restoreLabel = document.createElement('div'); restoreLabel.className='hint'; restoreLabel.style.marginBottom='6px';
+    restoreLabel.textContent = 'Ya tienes un archivo de respaldo (de esta u otra computadora/celular) y quieres volver a cargarlo aquí:';
+    restoreWrap.appendChild(restoreLabel);
+    const restoreInput = document.createElement('input'); restoreInput.type='file'; restoreInput.accept='.json,application/json';
+    restoreInput.addEventListener('change', async ()=>{
+      const file = restoreInput.files[0]; if(!file) return;
+      try{
+        await importarExpedienteCompletoJson(file);
+        renderAll();
+        showToast('Expediente restaurado');
+      }catch(e){ showToast('No se pudo leer ese archivo'); }
+      restoreInput.value = '';
+    });
+    restoreWrap.appendChild(restoreInput);
+    backupCard.appendChild(restoreWrap);
+    main.appendChild(backupCard);
+
+    const reminderCard = document.createElement('div'); reminderCard.className='card';
+    reminderCard.innerHTML = `<h3>Recordatorios finales</h3>
+      <div class="banner">Presenta el expediente en un plazo no mayor de 30 días calendario desde la Asamblea de Constitución (Art. 10).</div>
+      <div class="banner">Adjunta copias de cédula (o carnet de residente) de cada miembro de la Junta Directiva (Art. 11.5).</div>
+      <div class="banner">Una vez reconocida, la OBC deberá llevar libro de actas, registro de miembros y libros contables, y presentar un informe anual dentro de los 90 días siguientes a cada año de gestión (Art. 19 y 21).</div>`;
+    main.appendChild(reminderCard);
+
+    navButtons(main);
+  },
 };
-document.querySelectorAll(".cable-conexion").forEach(function(linea){
-  linea.addEventListener("click", function(){
-    const clave = linea.dataset.cable;
-    alternarCable(clave, DESCRIPCION_FALLA_CABLE[clave] || "");
-  });
-});
 
-// --- Botón "Restablecer todos los cables" ---
-document.getElementById("boton-restablecer-cables").addEventListener("click", function(){
-  Object.keys(estado.cables).forEach(function(clave){ estado.cables[clave] = true; });
-  registrarEvento("Todos los cables fueron restablecidos (reconectados) por el operador");
-  redibujarInterfaz();
-});
-
-// --- Botón "Aplicar Relación de CT" ---
-document.getElementById("boton-aplicar-ct").addEventListener("click", function(){
-  const configurada = parseFloat(document.getElementById("input-ct-configurado").value);
-  const real = parseFloat(document.getElementById("input-ct-real").value);
-  const etiqueta = document.getElementById("mensaje-confirmacion-ct");
-
-  if (isNaN(configurada) || isNaN(real) || configurada <= 0 || real <= 0){
-    etiqueta.textContent = "Error: las relaciones deben ser números mayores a 0.";
-    etiqueta.style.color = "#c62828";
-    return;
-  }
-  estado.relacionCTConfigurada = configurada;
-  estado.relacionCTReal = real;
-  registrarEvento(
-    `Relación de CT actualizada: configurada=${configurada}:5, real instalada=${real}:5` +
-    (configurada !== real ? " (¡DESAJUSTADAS! la lectura del controlador quedará distorsionada)" : " (coinciden - lectura correcta)")
-  );
-  etiqueta.textContent = "✓ Relación de CT aplicada.";
-  etiqueta.style.color = "#1f9d55";
-  redibujarInterfaz();
-});
-
-// --- Calibre del cable del motor ---
-document.getElementById("select-calibre-motor").addEventListener("change", function(e){
-  estado.calibreCableMotor = e.target.value;
-  registrarEvento(`Calibre del cable de alimentación al motor cambiado a AWG ${e.target.value}`);
-  redibujarInterfaz();
-});
-
-// --- Comparador de líneas L2 ---
-document.getElementById("input-l2-corriente").addEventListener("input", function(e){
-  const valor = parseFloat(e.target.value);
-  if (!isNaN(valor) && valor >= 0){
-    estado.comparadorL2Corriente = valor;
-    redibujarInterfaz();
-  }
-});
-document.getElementById("select-calibre-l2").addEventListener("change", function(e){
-  estado.comparadorL2Calibre = e.target.value;
-  redibujarInterfaz();
-});
-
-// --- Botón de sonido ---
-document.getElementById("boton-sonido").addEventListener("click", function(){
-  estado.sonidoActivado = !estado.sonidoActivado;
-  const boton = document.getElementById("boton-sonido");
-  boton.classList.toggle("activo", estado.sonidoActivado);
-  boton.innerHTML = estado.sonidoActivado ? "&#128266; Sonido" : "&#128263; Sonido";
-  registrarEvento(`Sonido de alarma ${estado.sonidoActivado ? "ACTIVADO" : "DESACTIVADO"}`);
-});
-
-// --- Botón de modo oscuro/claro ---
-document.getElementById("boton-tema").addEventListener("click", function(){
-  estado.temaOscuro = !estado.temaOscuro;
-  document.body.classList.toggle("tema-oscuro", estado.temaOscuro);
-  const boton = document.getElementById("boton-tema");
-  boton.classList.toggle("activo", estado.temaOscuro);
-  boton.innerHTML = estado.temaOscuro ? "&#9728; Modo Claro" : "&#127769; Modo Oscuro";
-  dibujarGrafica();
-});
-
-// --- Reloj de la barra superior ---
-function actualizarReloj(){
-  document.getElementById("reloj-indicador").textContent = new Date().toLocaleTimeString("es-PA");
-}
-setInterval(actualizarReloj, 1000);
-actualizarReloj();
-
-// ---------------------------------------------------------------------------
-// 13) ARRANQUE DEL SIMULADOR
-// ---------------------------------------------------------------------------
-registrarEvento("Página cargada - Entorno de entrenamiento DSE (100% Web) iniciado");
-document.getElementById("boton-sonido").classList.add("activo");
-redibujarTablaReportes();
-setInterval(tick, 150);              // Ciclo de "firmware" simulado, cada 150ms
-setInterval(registrarPuntoHistorial, 1000); // Un punto de la gráfica cada segundo
-redibujarInterfaz();
+/* ============ INICIO ============ */
+(async function init(){
+  await loadData();
+  // saneamiento por si faltan campos tras cargar datos guardados de versiones previas
+  data.plan.actividades = data.plan.actividades && data.plan.actividades.length ? data.plan.actividades : [blankActividad()];
+  data.fundadores = data.fundadores && data.fundadores.length >= 3 ? data.fundadores : [blankFundador(), blankFundador(), blankFundador()];
+  recalcularJuntaDesdeCargos();
+  renderAll();
+})();
 </script>
 </body>
 </html>
